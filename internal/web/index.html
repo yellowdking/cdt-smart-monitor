@@ -3,226 +3,325 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CDT Smart Monitor · 阿里云国际站智能轮换控制台</title>
+  <title>CDT Smart Monitor · 极简多机智能轮换控制台</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
-    .tab-btn.active { background: #4f46e5; color: #ffffff; border-color: #4f46e5; }
-    .strategy-card.selected { border-color: #6366f1; background: rgba(79, 70, 229, 0.14); }
+    :root {
+      --font-sans: 'Plus Jakarta Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background-color: #FAFAFA;
+      color: #0F172A;
+      letter-spacing: -0.01em;
+    }
+    .font-mono-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .tab-btn {
+      position: relative;
+      color: #64748B;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .tab-btn:hover { color: #0F172A; }
+    .tab-btn.active {
+      color: #0F172A;
+      font-weight: 600;
+      border-bottom-color: #0F172A;
+    }
+    .strategy-card {
+      border: 1px solid #E5E7EB;
+      background: #FFFFFF;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .strategy-card:hover { border-color: #94A3B8; }
+    .strategy-card.selected {
+      border-color: #0F172A;
+      background: #F8FAFC;
+      box-shadow: inset 0 0 0 1px #0F172A;
+    }
+    .input-line {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      color: #0F172A;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .input-line:focus {
+      outline: none;
+      border-color: #0F172A;
+      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+    }
+    .card-surface {
+      background: #FFFFFF;
+      border: 1px solid #E5E7EB;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
-  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">CDT</div>
-        <div>
-          <h1 class="text-base sm:text-lg font-semibold text-white">CDT Smart Monitor</h1>
-          <p class="text-xs text-slate-400">阿里云国际站双阈值熔断 · 内部 30GB / $0.05 缓冲 · 高峰自动均分轮换</p>
+<body class="min-h-screen antialiased selection:bg-slate-900 selection:text-white">
+  <!-- Minimalist White Header -->
+  <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <div class="h-16 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg border border-slate-900 bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold tracking-tight">
+            CDT
+          </div>
+          <div>
+            <h1 class="text-sm sm:text-base font-semibold tracking-tight text-slate-900">CDT Smart Monitor</h1>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span id="peakSplitBadge" class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">加载中...</span>
+          <button type="button" id="refreshAllBtn" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">全局同步</button>
+          <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-medium transition">退出</button>
         </div>
       </div>
-      <div class="flex items-center gap-2 text-xs">
-        <span id="peakSplitBadge" class="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">加载中...</span>
-        <button type="button" id="refreshAllBtn" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition">立即全局同步</button>
-        <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition">退出</button>
-      </div>
-    </div>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-3 flex flex-wrap gap-2">
-      <button type="button" data-tab="servers" class="tab-btn active px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">1. 多机池与实时控制</button>
-      <button type="button" data-tab="strategy" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">2. 智能轮换策略</button>
-      <button type="button" data-tab="events" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">3. 排班预览与运行日志</button>
-      <button type="button" data-tab="notify" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">4. 通知与安全 (Passkey)</button>
+
+      <!-- Hairline Underline Tabs -->
+      <nav class="flex items-center gap-6 overflow-x-auto -mb-px text-xs sm:text-sm">
+        <button type="button" data-tab="servers" class="tab-btn active py-2.5 whitespace-nowrap">多机池与控制</button>
+        <button type="button" data-tab="strategy" class="tab-btn py-2.5 whitespace-nowrap">智能轮换策略</button>
+        <button type="button" data-tab="events" class="tab-btn py-2.5 whitespace-nowrap">动态排班与日志</button>
+        <button type="button" data-tab="notify" class="tab-btn py-2.5 whitespace-nowrap">通知与安全</button>
+      </nav>
     </div>
   </header>
 
-  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm shadow-xl border border-indigo-400/40"></div>
+  <!-- Minimalist Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg"></div>
 
-  
-  <!-- Auth Gate Overlay (First-Time Password Setup / Password + HTTPS Passkey Login) -->
-  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-950/95 backdrop-blur flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white">CDT</div>
-        <div>
-          <h2 id="authTitle" class="text-lg font-semibold text-white">管理员登录</h2>
-          <p id="authSubtitle" class="text-xs text-slate-400">请输入管理员密码或使用 HTTPS Passkey 通行密钥</p>
-        </div>
+  <!-- Auth Gate Overlay (Minimalist White Card) -->
+  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-50/95 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-7 space-y-5 shadow-sm">
+      <div class="space-y-2">
+        <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold">CDT</div>
+        <h2 id="authTitle" class="text-lg font-semibold tracking-tight text-slate-900">管理员登录</h2>
+        <p id="authSubtitle" class="text-xs text-slate-500 leading-relaxed">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
       </div>
-      <form id="authForm" class="space-y-3">
+      <form id="authForm" class="space-y-3.5">
         <label class="block">
-          <span class="text-xs text-slate-400">管理员密码（至少 6 位）</span>
-          <input id="authPassword" type="password" required minlength="6" placeholder="请输入管理员密码" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" />
+          <span class="text-xs font-medium text-slate-700">管理员密码</span>
+          <input id="authPassword" type="password" required minlength="6" placeholder="至少 6 位密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </label>
         <label id="authConfirmWrap" class="hidden block">
-          <span class="text-xs text-slate-400">确认管理员密码</span>
-          <input id="authPasswordConfirm" type="password" minlength="6" placeholder="请再次输入密码" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" />
+          <span class="text-xs font-medium text-slate-700">确认管理员密码</span>
+          <input id="authPasswordConfirm" type="password" minlength="6" placeholder="再次输入密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </label>
-        <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">登录控制台</button>
+        <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">登录控制台</button>
       </form>
-      <div id="passkeyLoginWrap" class="hidden pt-2 border-t border-slate-800 space-y-2">
-        <button type="button" id="passkeyLoginBtn" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">使用 Passkey 通行密钥登录</button>
-        <p class="text-[11px] text-slate-400 text-center">支持 Face ID / Touch ID / Windows Hello / 硬件密钥（需 HTTPS）</p>
+      <div id="passkeyLoginWrap" class="hidden pt-4 border-t border-slate-100 space-y-2">
+        <button type="button" id="passkeyLoginBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 text-sm font-medium transition">使用 Passkey 通行密钥登录</button>
+        <p class="text-[11px] text-slate-400 text-center">支持 Face ID / Touch ID / Windows Hello（需 HTTPS）</p>
       </div>
     </div>
   </div>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-7 space-y-6">
     <!-- TAB 1: SERVERS -->
-    <section id="tab-servers" class="tab-panel space-y-5">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h2 class="text-base font-semibold text-white">添加阿里云 ECS 服务器到智能轮换池</h2>
-        <p class="text-xs text-slate-400 mt-1">最低 2 台健康机器即可开启智能轮换；AccessKey Secret 在服务端以 AES-256-GCM 加密落盘，不会明文返回。</p>
-        <form id="addServerForm" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <section id="tab-servers" class="tab-panel space-y-6">
+      <!-- Minimalist Summary Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="card-surface rounded-xl px-4 py-3.5">
+          <div class="text-[11px] text-slate-500 font-medium">池内健康节点</div>
+          <div id="kpiHealthy" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0 / 0</div>
+        </div>
+        <div class="card-surface rounded-xl px-4 py-3.5">
+          <div class="text-[11px] text-slate-500 font-medium">当前当班节点</div>
+          <div id="kpiDuty" class="text-base font-semibold text-slate-900 mt-1.5 truncate">—</div>
+        </div>
+        <div class="card-surface rounded-xl px-4 py-3.5">
+          <div class="text-[11px] text-slate-500 font-medium">累计已用流量</div>
+          <div id="kpiTraffic" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0.0 GB</div>
+        </div>
+        <div class="card-surface rounded-xl px-4 py-3.5">
+          <div class="text-[11px] text-slate-500 font-medium">累计本月费用</div>
+          <div id="kpiCost" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">$0.000</div>
+        </div>
+      </div>
+
+      <!-- Server Cards -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-900">实例列表</h2>
+          <span class="text-xs text-slate-400">内置 30GB / $0.05 安全垫 · 最低 2 台开启智能轮换</span>
+        </div>
+        <div id="serversGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- Add Server Form -->
+      <div class="card-surface rounded-2xl p-5 sm:p-6">
+        <div class="pb-4 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-900">添加阿里云 ECS 实例</h2>
+          <p class="text-xs text-slate-500 mt-0.5">AccessKey Secret 在服务端以 AES-256-GCM 加密存储，不会明文返回。</p>
+        </div>
+        <form id="addServerForm" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <label class="block">
-            <span class="text-xs text-slate-400">节点名称</span>
-            <input id="fName" required placeholder="如 SG-Node-01" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">节点名称</span>
+            <input id="fName" required placeholder="如 hk1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">站点类型</span>
-            <select id="fSite" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white">
+            <span class="text-xs font-medium text-slate-600">站点类型</span>
+            <select id="fSite" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
               <option value="intl">阿里云国际站 (USD)</option>
               <option value="china">阿里云中国站 (CNY)</option>
             </select>
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">地域 (RegionId)</span>
-            <input id="fRegion" required value="cn-hongkong" placeholder="香港 cn-hongkong / 新加坡 ap-southeast-1" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">地域 (RegionId)</span>
+            <input id="fRegion" required value="cn-hongkong" placeholder="香港 cn-hongkong / 新加坡 ap-southeast-1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">实例 ID (InstanceId)</span>
-            <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">实例 ID (InstanceId)</span>
+            <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">AccessKey ID</span>
-            <input id="fAkID" required placeholder="LTAI5t..." class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">AccessKey ID</span>
+            <input id="fAkID" required placeholder="LTAI5t..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">AccessKey Secret</span>
-            <input id="fAkSecret" type="password" required placeholder="输入 RAM Secret" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">AccessKey Secret</span>
+            <input id="fAkSecret" type="password" required placeholder="输入 RAM Secret" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">流量上限 (GB)</span>
-            <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">流量上限 (GB)</span>
+            <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">金额上限 ($)</span>
+            <span class="text-xs font-medium text-slate-600">金额上限 ($)</span>
             <div class="mt-1 flex gap-2">
-              <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-              <button type="submit" class="shrink-0 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">添加</button>
+              <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="input-line w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+              <button type="submit" class="shrink-0 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">添加</button>
             </div>
           </label>
-          <label class="sm:col-span-2 lg:col-span-4 inline-flex items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
-            <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-indigo-600" />
-            <span>启用<strong>抢占式实例保活</strong>（当班被抢占停机自动拉起，连续失败 3 次自动故障转移；阈值熔断与闲时关机始终优先于保活）</span>
+          <label class="sm:col-span-2 lg:col-span-4 inline-flex items-center gap-2 text-xs text-slate-600 pt-1 cursor-pointer">
+            <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-slate-900 rounded" />
+            <span>启用<strong class="text-slate-900">抢占式实例保活</strong>（当班被抢占停机自动拉起，连续失败 3 次自动故障转移；阈值熔断与闲时关机始终优先）</span>
           </label>
         </form>
       </div>
-
-      <div id="serversGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </section>
 
     <!-- TAB 2: SMART STRATEGY -->
     <section id="tab-strategy" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class="lg:col-span-7 space-y-5">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-          <div class="flex items-center justify-between">
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div class="flex items-start justify-between gap-2">
             <div>
-              <span class="text-xs font-semibold text-indigo-400">配置 1 / 4 · 使用时段</span>
-              <h2 class="text-base font-semibold text-white mt-0.5">每天什么时间段使用机器？</h2>
-              <p class="text-xs text-slate-400 mt-1">非使用时段系统自动对全池执行集体节省停机 (StopCharging)。</p>
+              <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">01 · 使用时段</span>
+              <h2 class="text-base font-semibold text-slate-900 mt-0.5">每日活跃使用时段</h2>
+              <p class="text-xs text-slate-500 mt-1">非使用时段自动对全池执行集体节省停机（StopCharging）。</p>
             </div>
-            <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
-              <input id="pEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
+            <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <input id="pEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
               启用智能轮换
             </label>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-xs text-slate-400">开始使用时间</span>
-              <select id="pActiveStart" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+              <span class="text-xs font-medium text-slate-600">开始时间</span>
+              <select id="pActiveStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-xs text-slate-400">结束使用时间</span>
-              <select id="pActiveEnd" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+              <span class="text-xs font-medium text-slate-600">结束时间</span>
+              <select id="pActiveEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
           </div>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-xs font-semibold text-amber-400">配置 2 / 4 · 高峰期均衡</span>
-            <h2 class="text-base font-semibold text-white mt-0.5">每天的高峰期是几点？</h2>
-            <p class="text-xs text-slate-400 mt-1">系统自动按池内健康机器数均分高峰时长（最低 2 台）；高峰「单班突发上限」优先级高于全局 30GB 刷新差值急停。</p>
+            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">02 · 高峰期动态均衡</span>
+            <h2 class="text-base font-semibold text-slate-900 mt-0.5">高峰时段与单班突发上限</h2>
+            <p class="text-xs text-slate-500 mt-1">按健康机器数自动均分时长，每日自动互换槽位，余量差 ≥ 20% 自动纠偏顶班。</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">高峰开始</span>
+              <select id="pPeakStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+            </label>
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">高峰结束</span>
+              <select id="pPeakEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+            </label>
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">单班突发上限 (GB)</span>
+              <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            </label>
+          </div>
+        </div>
+
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div>
+            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">03 · 轮换风格</span>
+            <h2 class="text-base font-semibold text-slate-900 mt-0.5">选择多机轮换模式</h2>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label class="block">
-              <span class="text-xs text-slate-400">高峰开始</span>
-              <select id="pPeakStart" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
-            </label>
-            <label class="block">
-              <span class="text-xs text-slate-400">高峰结束</span>
-              <select id="pPeakEnd" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
-            </label>
-            <label class="block">
-              <span class="text-xs text-slate-400">单班突发上限 (GB)</span>
-              <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-            </label>
-          </div>
-        </div>
-
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-          <div>
-            <span class="text-xs font-semibold text-indigo-400">配置 3 / 4 · 轮换风格</span>
-            <h2 class="text-base font-semibold text-white mt-0.5">选择多机轮换模式</h2>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button type="button" data-strategy="smart_hybrid" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
-              <div class="text-sm font-semibold text-white">智能高峰均衡</div>
-              <p class="text-xs text-slate-400 mt-1.5">闲时全关，平峰稳态，高峰按机数自动均分。</p>
+            <button type="button" data-strategy="smart_hybrid" class="strategy-card text-left p-4 rounded-xl">
+              <div class="text-sm font-semibold text-slate-900">智能高峰均衡</div>
+              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">闲时集体关机，高峰按机数自动均分与动态纠偏。</p>
             </button>
-            <button type="button" data-strategy="exhaust_sequential" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
-              <div class="text-sm font-semibold text-white">顺序榨干接力</div>
-              <p class="text-xs text-slate-400 mt-1.5">单机一直用到流量/金额触线再自动切下一台。</p>
+            <button type="button" data-strategy="exhaust_sequential" class="strategy-card text-left p-4 rounded-xl">
+              <div class="text-sm font-semibold text-slate-900">顺序榨干接力</div>
+              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">单机持续运行至触及流量或金额线再无缝接力。</p>
             </button>
-            <button type="button" data-strategy="continuous_round_robin" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
-              <div class="text-sm font-semibold text-white">持续均摊轮换</div>
-              <p class="text-xs text-slate-400 mt-1.5">全活跃时段按剩余健康度持续均匀轮换。</p>
+            <button type="button" data-strategy="continuous_round_robin" class="strategy-card text-left p-4 rounded-xl">
+              <div class="text-sm font-semibold text-slate-900">持续均摊轮换</div>
+              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">全活跃时段按余量健康度持续均匀轮流上岗。</p>
             </button>
           </div>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-xs font-semibold text-indigo-400">配置 4 / 4 · 默认双上限</span>
-            <h2 class="text-base font-semibold text-white mt-0.5">单机默认流量与金额上限</h2>
-            <p class="text-xs text-slate-400 mt-1">内部统一内置 30GB 流量安全垫与 $0.05 金额安全垫，无需手动配置缓冲。</p>
+            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">04 · 默认双上限</span>
+            <h2 class="text-base font-semibold text-slate-900 mt-0.5">单机默认流量与金额上限</h2>
+            <p class="text-xs text-slate-500 mt-1">系统内部统一预留 30GB 流量安全垫与 $0.05 金额安全垫。</p>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-xs text-slate-400">默认流量上限 (GB)</span>
-              <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+              <span class="text-xs font-medium text-slate-600">默认流量上限 (GB)</span>
+              <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
             <label class="block">
-              <span class="text-xs text-slate-400">默认金额上限 ($)</span>
-              <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+              <span class="text-xs font-medium text-slate-600">默认金额上限 ($)</span>
+              <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
           </div>
         </div>
       </div>
 
       <div class="lg:col-span-5">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 sticky top-28">
-          <h3 class="text-base font-semibold text-white">内置保护规则与保存</h3>
-          <ul class="space-y-2 text-xs text-slate-300 leading-relaxed">
-            <li class="p-3 rounded-xl bg-slate-950 border border-slate-800"><strong>内部统一缓冲：</strong>流量上限自动预留 30GB（默认 200GB → 170GB 停机）；金额上限自动预留 $0.05（默认 $0.50 → $0.45 停机）。</li>
-            <li class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-200"><strong>高峰优先级：</strong>高峰期单班突发上限优先于全局 30GB 刷新差值规则，防止高峰业务被提前误切。</li>
-            <li class="p-3 rounded-xl bg-slate-950 border border-slate-800"><strong>刷新差值急停：</strong>非高峰两次刷新流量差 &gt; 30GB、或全时段两次刷新金额差 &gt; $0.05，立即停机并切机。</li>
-          </ul>
-          <div class="flex flex-col gap-2.5 pt-2">
-            <button type="button" id="savePoolBtn" class="w-full px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">保存智能策略</button>
-            <button type="button" id="saveAndSyncLimitsBtn" class="w-full px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">保存并同步双上限到所有现有服务器</button>
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 sticky top-28">
+          <h3 class="text-sm font-semibold text-slate-900">内置风控规则</h3>
+          <div class="divide-y divide-slate-100 text-xs text-slate-600 leading-relaxed">
+            <div class="py-3 first:pt-0">
+              <div class="font-semibold text-slate-900 mb-0.5">内部统一安全垫</div>
+              流量上限自动预留 30GB（200GB → 170GB 停机）；金额上限自动预留 $0.05（$0.50 → $0.45 停机）。
+            </div>
+            <div class="py-3">
+              <div class="font-semibold text-amber-700 mb-0.5">高峰单班突发上限优先</div>
+              高峰时段内，单班突发上限优先级高于全局 30GB 刷新差值规则，保障业务不中断。
+            </div>
+            <div class="py-3">
+              <div class="font-semibold text-slate-900 mb-0.5">刷新差值急停切换</div>
+              非高峰相邻两次刷新流量增幅 &gt; 30GB，或全时段金额增幅 &gt; $0.05，立即停机并切机。
+            </div>
+            <div class="py-3 last:pb-0">
+              <div class="font-semibold text-slate-900 mb-0.5">动态自平衡排班</div>
+              日常按天自动互换高峰槽位；余量差距 ≥ 20% 时自动由余量最充裕节点顶班。
+            </div>
+          </div>
+          <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+            <button type="button" id="savePoolBtn" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存智能策略</button>
+            <button type="button" id="saveAndSyncLimitsBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200 transition">保存并同步双上限至全池</button>
           </div>
         </div>
       </div>
@@ -230,81 +329,97 @@
 
     <!-- TAB 3: TIMELINE & EVENTS -->
     <section id="tab-events" class="tab-panel hidden space-y-5">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+      <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-base font-semibold text-white">今日 24 小时动态排班预览</h2>
-          <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">动态均衡</span>
+          <h2 class="text-sm font-semibold text-slate-900">今日 24 小时动态排班预览</h2>
+          <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">动态均衡</span>
         </div>
-        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));"></div>
+        <div class="flex flex-wrap gap-4 text-[11px] text-slate-500">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>非使用时段 · 集体关机</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200"></span>平峰时段 · 稳态值班</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-300"></span>高峰时段 · 动态均分</span>
+        </div>
+        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));"></div>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-        <h2 class="text-base font-semibold text-white">后端实时调度与操作日志</h2>
-        <div id="eventsList" class="space-y-2 max-h-[460px] overflow-y-auto text-xs"></div>
+      <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3">
+        <h2 class="text-sm font-semibold text-slate-900">实时调度与操作日志</h2>
+        <div id="eventsList" class="divide-y divide-slate-100 max-h-[480px] overflow-y-auto text-xs"></div>
       </div>
     </section>
 
-    <!-- TAB 4: NOTIFY & POLLING -->
-    <section id="tab-notify" class="tab-panel hidden max-w-2xl space-y-5">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-        <h2 class="text-base font-semibold text-white">通知渠道与代理设置</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 border-b border-slate-800">
+    <!-- TAB 4: NOTIFY & SECURITY -->
+    <section id="tab-notify" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Left: Notification & Proxy -->
+      <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 h-fit">
+        <div class="pb-3 border-b border-slate-100">
+          <h2 class="text-sm font-semibold text-slate-900">通知渠道与代理设置</h2>
+          <p class="text-xs text-slate-500 mt-0.5">支持 HTTP / HTTPS / SOCKS5 代理或自定义 Telegram API 反代。</p>
+        </div>
+        <div class="space-y-3">
           <label class="block">
-            <span class="text-xs text-slate-400">通知代理地址（支持 HTTP / HTTPS / SOCKS5，留空直连）</span>
-            <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://user:pass@ip:port" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">通知代理地址（留空直连）</span>
+            <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://ip:port" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs text-slate-400">Telegram API 反代地址（可选，留空默认官方地址）</span>
-            <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            <span class="text-xs font-medium text-slate-600">Telegram API 反代地址（可选）</span>
+            <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
         </div>
-        <label class="flex items-center gap-2 text-sm">
-          <input id="nTgEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
-          启用 Telegram Bot 通知
-        </label>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="block">
-            <span class="text-xs text-slate-400">Bot Token</span>
-            <input id="nTgToken" type="password" placeholder="123456:ABC..." class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+        <div class="pt-2 border-t border-slate-100 space-y-3">
+          <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+            <input id="nTgEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
+            启用 Telegram Bot 通知
           </label>
-          <label class="block">
-            <span class="text-xs text-slate-400">Chat ID</span>
-            <input id="nTgChat" placeholder="你的 Chat ID" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-          </label>
-        </div>
-        <label class="flex items-center gap-2 text-sm pt-2">
-          <input id="nWhEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
-          启用自定义 Webhook (POST JSON)
-        </label>
-        <input id="nWhURL" placeholder="https://example.com/webhook" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-        <div class="flex flex-wrap gap-2.5">
-          <button type="button" id="saveNotifyBtn" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">保存通知配置</button>
-          <button type="button" id="testNotifyBtn" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">发送测试通知</button>
-        </div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 class="text-base font-semibold text-white">Passkey 通行密钥保护（HTTPS）</h2>
-            <p class="text-xs text-slate-400 mt-0.5">在 HTTPS 反代域名下绑定设备生物识别或安全密钥，实现免密强认证。</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">Bot Token</span>
+              <input id="nTgToken" type="password" placeholder="123456:ABC..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">Chat ID</span>
+              <input id="nTgChat" placeholder="你的 Chat ID" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            </label>
           </div>
-          <span id="httpsStatusBadge" class="px-2.5 py-1 rounded-full text-xs border border-slate-700 bg-slate-800 text-slate-300">检测中...</span>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <input id="pkNameInput" placeholder="密钥备注（如 MacBook TouchID / iPhone）" class="flex-1 min-w-[200px] rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-          <button type="button" id="registerPasskeyBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">+ 绑定新 Passkey</button>
+        <div class="pt-2 border-t border-slate-100 space-y-2.5">
+          <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+            <input id="nWhEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
+            启用自定义 Webhook (POST JSON)
+          </label>
+          <input id="nWhURL" placeholder="https://example.com/webhook" class="input-line w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
         </div>
-        <div id="passkeysList" class="space-y-2 text-xs"></div>
+        <div class="flex flex-wrap gap-2.5 pt-2">
+          <button type="button" id="saveNotifyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存配置</button>
+          <button type="button" id="testNotifyBtn" class="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-sm font-medium transition">发送测试通知</button>
+        </div>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-        <h2 class="text-base font-semibold text-white">修改本地管理员密码</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input id="oldPwdInput" type="password" placeholder="输入原密码" class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
-          <input id="newPwdInput" type="password" placeholder="输入新密码（至少 6 位）" class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+      <!-- Right: Passkey & Password -->
+      <div class="space-y-5">
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-900">Passkey 通行密钥（HTTPS）</h2>
+              <p class="text-xs text-slate-500 mt-0.5">在 HTTPS 反代域名下绑定 Face ID / Touch ID / Windows Hello 免密登录。</p>
+            </div>
+            <span id="httpsStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-600">检测中...</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <input id="pkNameInput" placeholder="密钥备注（如 MacBook / iPhone）" class="input-line flex-1 min-w-[180px] rounded-xl px-3 py-2 text-sm" />
+            <button type="button" id="registerPasskeyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">+ 绑定 Passkey</button>
+          </div>
+          <div id="passkeysList" class="divide-y divide-slate-100 text-xs"></div>
         </div>
-        <button type="button" id="changePwdBtn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-medium transition">更新管理员密码</button>
+
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3.5">
+          <h2 class="text-sm font-semibold text-slate-900">修改本地管理员密码</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input id="oldPwdInput" type="password" placeholder="输入原密码" class="input-line rounded-xl px-3 py-2 text-sm" />
+            <input id="newPwdInput" type="password" placeholder="输入新密码（至少 6 位）" class="input-line rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <button type="button" id="changePwdBtn" class="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-sm font-medium transition">更新管理员密码</button>
+        </div>
       </div>
     </section>
   </main>
@@ -316,8 +431,8 @@
     function toast(msg, isErr) {
       const el = document.getElementById('toast');
       el.textContent = msg;
-      el.className = 'fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl text-white text-sm shadow-xl border ' +
-        (isErr ? 'bg-rose-600 border-rose-400/40' : 'bg-indigo-600 border-indigo-400/40');
+      el.className = 'fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg border ' +
+        (isErr ? 'bg-rose-600 text-white border-rose-700' : 'bg-slate-900 text-white border-slate-800');
       clearTimeout(window.__tt);
       window.__tt = setTimeout(() => el.classList.add('hidden'), 2800);
     }
@@ -351,20 +466,36 @@
       }
     }
 
+    function serverHeadroom(s) {
+      const effT = Math.max(1, s.max_traffic_gb - 30);
+      const effC = Math.max(0.05, s.max_cost_usd - 0.05);
+      const tR = Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT));
+      const cR = Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC));
+      return Math.min(tR, cR);
+    }
+
     function renderAll() {
       if (!appState) return;
       const p = appState.pool;
       const servers = appState.servers || [];
       const healthy = servers.filter(s => s.in_pool && !s.locked_until);
       const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
-      const badge = document.getElementById('peakSplitBadge');
-      if (healthy.length >= 2) {
-        badge.textContent = `高峰自动均分：${healthy.length} 台机 · 每台 ${(peakHrs / healthy.length).toFixed(1)}h`;
-      } else {
-        badge.textContent = `池内健康机 ${healthy.length} 台（智能轮换最低 2 台）`;
-      }
 
-      // Populate strategy form
+      const badge = document.getElementById('peakSplitBadge');
+      badge.textContent = healthy.length >= 2
+        ? `高峰均分 · ${healthy.length} 台 · ${(peakHrs / healthy.length).toFixed(1)}h/台`
+        : `健康节点 ${healthy.length} 台（最低 2 台轮换）`;
+
+      // KPI Strip
+      const dutySrv = servers.find(s => s.id === p.current_server_id);
+      const totalTraffic = servers.reduce((acc, s) => acc + (s.used_traffic_gb || 0), 0);
+      const totalCost = servers.reduce((acc, s) => acc + (s.billed_cost_usd || 0), 0);
+      document.getElementById('kpiHealthy').textContent = `${healthy.length} / ${servers.length}`;
+      document.getElementById('kpiDuty').textContent = dutySrv ? dutySrv.name : '待分配';
+      document.getElementById('kpiTraffic').textContent = `${totalTraffic.toFixed(1)} GB`;
+      document.getElementById('kpiCost').textContent = `$${totalCost.toFixed(3)}`;
+
+      // Strategy form
       document.getElementById('pEnabled').checked = !!p.enabled;
       document.getElementById('pActiveStart').value = p.active_start_hour;
       document.getElementById('pActiveEnd').value = p.active_end_hour;
@@ -394,7 +525,7 @@
     function renderServers(servers, currentID) {
       const grid = document.getElementById('serversGrid');
       if (servers.length === 0) {
-        grid.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-900 border border-slate-800 rounded-2xl text-sm text-slate-400">暂无服务器，请在上方添加至少 2 台阿里云实例即可开启智能轮换。</div>';
+        grid.innerHTML = '<div class="col-span-full text-center py-12 bg-white border border-dashed border-slate-300 rounded-2xl text-sm text-slate-500">暂无服务器，请在下方添加至少 2 台阿里云实例即可开启智能轮换。</div>';
         return;
       }
       grid.innerHTML = servers.map(s => {
@@ -403,46 +534,61 @@
         const tPct = Math.min(100, (s.used_traffic_gb / Math.max(1, s.max_traffic_gb)) * 100);
         const cPct = Math.min(100, (s.billed_cost_usd / Math.max(0.01, s.max_cost_usd)) * 100);
         const isDuty = s.id === currentID;
-        const stColor = s.status === 'Running' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-300 border-slate-700';
+        const isRun = s.status === 'Running';
+        const dotCls = isRun ? 'bg-emerald-500' : 'bg-slate-300';
+        const stText = isRun ? 'text-emerald-700' : 'text-slate-500';
+
         return `
-          <div class="bg-slate-900 border ${isDuty ? 'border-indigo-500/60' : 'border-slate-800'} rounded-2xl p-4 space-y-3 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between gap-2">
-                <div class="font-semibold text-sm text-white">${s.name} ${isDuty ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-600 text-white">当班</span>' : ''}</div>
-                <span class="px-2 py-0.5 rounded-full text-xs border ${stColor}">${s.status || 'Unknown'}</span>
-              </div>
-              <div class="text-xs text-slate-400 mt-1">${s.region} · ${s.instance_id} ${s.public_ip ? '· ' + s.public_ip : ''}</div>
-              ${s.locked_until ? `<div class="mt-2 text-xs px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">本月已熔断锁定 (${s.lock_reason})</div>` : ''}
-              ${s.last_error ? `<div class="mt-2 text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200 break-all">${s.last_error}</div>` : ''}
-              <div class="mt-3 space-y-2">
+          <div class="bg-white border ${isDuty ? 'border-slate-900' : 'border-slate-200'} rounded-2xl p-5 flex flex-col justify-between gap-4 transition">
+            <div class="space-y-3">
+              <div class="flex items-start justify-between gap-2">
                 <div>
-                  <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">CDT 流量（内部熔断 ${effT.toFixed(0)}G）</span><span>${s.used_traffic_gb.toFixed(2)} / ${s.max_traffic_gb} GB</span></div>
-                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full ${s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-sky-500'}" style="width:${tPct.toFixed(1)}%"></div></div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-sm text-slate-900">${s.name}</span>
+                    ${isDuty ? '<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-900 text-white">当班</span>' : ''}
+                  </div>
+                  <div class="font-mono-num text-[11px] text-slate-400 mt-0.5">${s.region} · ${s.instance_id}${s.public_ip ? ' · ' + s.public_ip : ''}</div>
+                </div>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium ${stText}">
+                  <span class="w-1.5 h-1.5 rounded-full ${dotCls}"></span>${s.status || 'Unknown'}
+                </span>
+              </div>
+
+              ${s.locked_until ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">本月已熔断锁定（${s.lock_reason}）</div>` : ''}
+              ${s.last_error ? `<div class="text-[11px] px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 break-all">${s.last_error}</div>` : ''}
+
+              <div class="space-y-2.5 pt-1">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-500">CDT 流量 <span class="text-slate-400">(停机线 ${effT.toFixed(0)}G)</span></span>
+                    <span class="font-mono-num font-medium text-slate-800">${s.used_traffic_gb.toFixed(2)} / ${s.max_traffic_gb} GB</span>
+                  </div>
+                  <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div class="h-full rounded-full ${s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
+                  </div>
                 </div>
                 <div>
-                  <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">本月费用（内部熔断 $${effC.toFixed(2)}）</span><span>$${s.billed_cost_usd.toFixed(3)} / $${s.max_cost_usd.toFixed(2)}</span></div>
-                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full ${s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div></div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-500">本月费用 <span class="text-slate-400">(停机线 $${effC.toFixed(2)})</span></span>
+                    <span class="font-mono-num font-medium text-slate-800">$${s.billed_cost_usd.toFixed(3)} / $${s.max_cost_usd.toFixed(2)}</span>
+                  </div>
+                  <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div class="h-full rounded-full ${s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5 text-xs">
-              <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30">开机</button>
-              <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/35 text-amber-300 border border-amber-500/30">节省停机</button>
-              <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">刷新</button>
-              <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg border ${s.keep_alive ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}">${s.keep_alive ? '保活:开' : '保活:关'}</button>
-              ${s.locked_until ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30">解锁</button>` : ''}
-              <button type="button" data-act="delete" data-id="${s.id}" class="ml-auto px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-300 border border-slate-700">删除</button>
+
+            <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+              <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 transition">开机</button>
+              <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 transition">停机</button>
+              <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 transition">刷新</button>
+              <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400'}">${s.keep_alive ? '保活:开' : '保活:关'}</button>
+              ${s.locked_until ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700">解锁</button>` : ''}
+              <button type="button" data-act="delete" data-id="${s.id}" class="ml-auto px-2 py-1 rounded-lg text-slate-400 hover:text-rose-600 transition">删除</button>
             </div>
           </div>`;
       }).join('');
-    }
-
-    function serverHeadroom(s) {
-      const effT = Math.max(1, s.max_traffic_gb - 30);
-      const effC = Math.max(0.05, s.max_cost_usd - 0.05);
-      const tR = Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT));
-      const cR = Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC));
-      return Math.min(tR, cR);
     }
 
     function renderGantt(servers, p) {
@@ -463,17 +609,17 @@
       const isImbalanced = healthy.length >= 2 && (maxH - minH) >= 0.20;
       if (modeBadge) {
         modeBadge.textContent = isImbalanced
-          ? `余量纠偏中：差距 ${((maxH - minH) * 100).toFixed(0)}%，高峰优先 ${imbalancedBest.name} 顶班`
-          : (healthy.length >= 2 ? `按日动态互换高峰时段（今日偏移 +${dayOffset}）` : '单机模式');
+          ? `余量纠偏中（差 ${((maxH - minH) * 100).toFixed(0)}%）：高峰优先 ${imbalancedBest.name}`
+          : (healthy.length >= 2 ? `按日动态互换高峰槽位（偏移 +${dayOffset}）` : '单机模式');
       }
 
       const cells = [];
       for (let h = 0; h < 24; h++) {
         const active = inRange(h, p.active_start_hour, p.active_end_hour);
         const peak = active && inRange(h, p.peak_start_hour, p.peak_end_hour);
-        let cls = 'bg-slate-800 text-slate-400 border-slate-700', lbl = '休眠';
+        let cls = 'bg-slate-50 text-slate-400 border-slate-200', lbl = '休眠';
         if (active && healthy.length === 0) {
-          cls = 'bg-rose-600/25 text-rose-200 border-rose-500/40'; lbl = '无可用';
+          cls = 'bg-rose-50 text-rose-700 border-rose-200'; lbl = '无可用';
         } else if (peak) {
           let srv = imbalancedBest;
           if (!isImbalanced) {
@@ -482,14 +628,14 @@
             const slotIdx = (Math.floor(hrsSince / sliceHrs) + dayOffset) % healthy.length;
             srv = healthy[slotIdx];
           }
-          cls = 'bg-amber-500/25 text-amber-200 border-amber-500/50';
+          cls = 'bg-amber-50 text-amber-900 border-amber-300';
           lbl = srv.name.slice(0, 6);
         } else if (active) {
           const srv = isImbalanced ? imbalancedBest : healthy[(Math.floor(h / 6) + dayOffset) % healthy.length];
-          cls = 'bg-sky-500/20 text-sky-200 border-sky-500/40';
+          cls = 'bg-blue-50 text-blue-900 border-blue-200';
           lbl = srv.name.slice(0, 6);
         }
-        cells.push(`<div class="flex flex-col items-center p-1.5 rounded-lg border ${cls}"><span class="text-[10px] opacity-75">${String(h).padStart(2,'0')}h</span><span class="text-[11px] font-semibold mt-1 truncate max-w-full">${lbl}</span></div>`);
+        cells.push(`<div class="flex flex-col items-center py-2 px-1 rounded-lg border ${cls}"><span class="font-mono-num text-[10px] opacity-70">${String(h).padStart(2,'0')}</span><span class="text-[11px] font-medium mt-1 truncate max-w-full">${lbl}</span></div>`);
       }
       box.innerHTML = cells.join('');
     }
@@ -497,16 +643,18 @@
     function renderEvents(events) {
       const list = document.getElementById('eventsList');
       if (events.length === 0) {
-        list.innerHTML = '<div class="text-slate-400 py-4 text-center">暂无调度日志</div>';
+        list.innerHTML = '<div class="text-slate-400 py-6 text-center">暂无调度日志</div>';
         return;
       }
       list.innerHTML = events.map(ev => {
-        const badge = ev.level === 'error' ? 'text-rose-300 bg-rose-500/15' : (ev.level === 'warn' ? 'text-amber-300 bg-amber-500/15' : 'text-sky-300 bg-sky-500/15');
-        return `<div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
-          <span class="text-slate-500 font-mono">${ev.time}</span>
-          <span class="px-2 py-0.5 rounded font-medium ${badge}">${ev.action}</span>
-          <span class="text-slate-200 font-medium">${ev.server}</span>
-          <span class="text-slate-400">${ev.message}</span>
+        const badge = ev.level === 'error'
+          ? 'text-rose-700 bg-rose-50 border-rose-200'
+          : (ev.level === 'warn' ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-slate-700 bg-slate-50 border-slate-200');
+        return `<div class="flex flex-wrap items-center gap-2.5 py-2.5">
+          <span class="font-mono-num text-slate-400">${ev.time}</span>
+          <span class="px-2 py-0.5 rounded-md border font-medium ${badge}">${ev.action}</span>
+          <span class="text-slate-900 font-medium">${ev.server}</span>
+          <span class="text-slate-500">${ev.message}</span>
         </div>`;
       }).join('');
     }
@@ -534,7 +682,7 @@
           body: JSON.stringify(body)
         });
         renderAll();
-        toast(syncLimits ? '策略已保存并同步到全池服务器' : '智能轮换策略已保存');
+        toast(syncLimits ? '策略已保存并同步到全池' : '智能轮换策略已保存');
       } catch (e) {
         toast('保存失败: ' + e.message, true);
       }
@@ -587,7 +735,7 @@
           document.getElementById('fMaxGB').value = appState.pool.default_max_traffic_gb;
           document.getElementById('fMaxUSD').value = appState.pool.default_max_cost_usd;
           renderAll();
-          toast('服务器已加入智能轮换池，正在同步状态...');
+          toast('服务器已加入智能轮换池，正在同步...');
           setTimeout(loadState, 3000);
         } catch (err) {
           toast('添加失败: ' + err.message, true);
@@ -605,7 +753,7 @@
             appState = await api(`/api/v1/servers/${id}/${act}`, { method: 'POST' });
           }
           renderAll();
-          toast('操作已执行: ' + act);
+          toast('操作已执行');
         } catch (err) {
           toast('操作失败: ' + err.message, true);
         }
@@ -665,7 +813,7 @@
         }
       });
 
-      // WebAuthn Base64URL helpers
+      // --- WebAuthn Passkey & Local Auth ---
       function b64uToBuf(str) {
         const pad = '='.repeat((4 - (str.length % 4)) % 4);
         const raw = atob((str + pad).replace(/-/g, '+').replace(/_/g, '/'));
@@ -686,18 +834,18 @@
         const box = document.getElementById('passkeysList');
         const badge = document.getElementById('httpsStatusBadge');
         const isSecure = window.isSecureContext || authStatus.is_https;
-        badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 反代启用 Passkey）';
+        badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 启用）';
         badge.className = isSecure
-          ? 'px-2.5 py-1 rounded-full text-xs border border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
-          : 'px-2.5 py-1 rounded-full text-xs border border-amber-500/30 bg-amber-500/15 text-amber-300';
+          ? 'px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-amber-200 bg-amber-50 text-amber-800';
         if (!list || list.length === 0) {
-          box.innerHTML = '<div class="text-slate-400 py-2">尚未绑定 Passkey 通行密钥</div>';
+          box.innerHTML = '<div class="text-slate-400 py-3">尚未绑定 Passkey 通行密钥</div>';
           return;
         }
         box.innerHTML = list.map(pk => `
-          <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
-            <div><span class="text-slate-200 font-medium">${pk.name}</span> <span class="text-slate-500 ml-2">绑定于 ${pk.created_at}</span></div>
-            <button type="button" data-del-pk="${pk.id}" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-300 border border-slate-700">删除</button>
+          <div class="flex items-center justify-between gap-2 py-2.5">
+            <div><span class="text-slate-900 font-medium">${pk.name}</span> <span class="font-mono-num text-slate-400 ml-2">${pk.created_at}</span></div>
+            <button type="button" data-del-pk="${pk.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 transition">删除</button>
           </div>
         `).join('');
       }
@@ -710,7 +858,7 @@
             gate.classList.remove('hidden');
             const isInit = authStatus.initialized;
             document.getElementById('authTitle').textContent = isInit ? '管理员登录' : '首次安全初始化';
-            document.getElementById('authSubtitle').textContent = isInit ? '请输入本地管理员密码或使用 HTTPS Passkey 登录' : '请为面板设置本地管理员密码（保存后立即启用认证保护）';
+            document.getElementById('authSubtitle').textContent = isInit ? '请输入本地管理员密码或使用 HTTPS Passkey 登录' : '请设置本地管理员密码，保存后立即启用认证保护';
             document.getElementById('authSubmitBtn').textContent = isInit ? '密码登录' : '设置密码并进入';
             document.getElementById('authConfirmWrap').classList.toggle('hidden', isInit);
             document.getElementById('passkeyLoginWrap').classList.toggle('hidden', !(isInit && authStatus.has_passkeys && window.PublicKeyCredential));
@@ -780,7 +928,7 @@
 
       document.getElementById('registerPasskeyBtn').addEventListener('click', async () => {
         if (!window.isSecureContext || !navigator.credentials) {
-          toast('绑定 Passkey 需要在 HTTPS 域名（如 Nginx/Caddy 反代）下打开面板', true);
+          toast('绑定 Passkey 需要在 HTTPS 域名下打开面板', true);
           return;
         }
         try {
@@ -797,7 +945,7 @@
             }
           });
           if (!cred.response.getPublicKey || !cred.response.getAuthenticatorData) {
-            toast('当前浏览器不支持 WebAuthn L2 getPublicKey 接口，请升级 Chrome/Safari/Edge', true);
+            toast('当前浏览器不支持 getPublicKey，请升级浏览器', true);
             return;
           }
           appState = await api('/api/v1/auth/passkey/register/finish', {
