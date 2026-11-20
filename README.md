@@ -11,6 +11,7 @@
 
 ## 快速部署（Docker Compose）
 ```bash
+git clone [https://github.com/yellowdking/cdt-smart-monitor.git](https://github.com/yellowdking/cdt-smart-monitor.git) && cd cdt-smart-monitor
 docker compose up -d --build
 ```
 启动后浏览器访问 `http://服务器IP:43211` 完成首次管理员密码初始化即可使用（公网部署建议通过 Nginx / Caddy 反代启用 HTTPS 并透传 `Host` 与 `X-Forwarded-Proto: https`，以开启 Passkey 通行密钥保护）。
