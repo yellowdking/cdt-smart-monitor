@@ -70,7 +70,7 @@ Go 1.24 HTTP Server (零第三方依赖)
 ```yaml
 services:
   cdt-smart-monitor:
-    image: <你的DockerHub用户名>/cdt-smart-monitor:latest
+    image: bbplin/cdt-smart-monitor:latest
     container_name: cdt-smart-monitor
     user: "0:0"
     restart: unless-stopped
