@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CDT Smart Monitor · 阿里云国际站智能轮换控制台</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .tab-btn.active { background: #4f46e5; color: #ffffff; border-color: #4f46e5; }
+    .strategy-card.selected { border-color: #6366f1; background: rgba(79, 70, 229, 0.14); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">CDT</div>
+        <div>
+          <h1 class="text-base sm:text-lg font-semibold text-white">CDT Smart Monitor</h1>
+          <p class="text-xs text-slate-400">阿里云国际站双阈值熔断 · 内部 30GB / $0.05 缓冲 · 高峰自动均分轮换</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span id="peakSplitBadge" class="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">加载中...</span>
+        <button type="button" id="refreshAllBtn" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition">立即全局同步</button>
+        <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition">退出</button>
+      </div>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pb-3 flex flex-wrap gap-2">
+      <button type="button" data-tab="servers" class="tab-btn active px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">1. 多机池与实时控制</button>
+      <button type="button" data-tab="strategy" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">2. 智能轮换策略</button>
+      <button type="button" data-tab="events" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">3. 排班预览与运行日志</button>
+      <button type="button" data-tab="notify" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium border border-slate-700 bg-slate-800/70 text-slate-200 hover:bg-slate-800 transition">4. 通知与安全 (Passkey)</button>
+    </div>
+  </header>
+
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm shadow-xl border border-indigo-400/40"></div>
+
+  
+  <!-- Auth Gate Overlay (First-Time Password Setup / Password + HTTPS Passkey Login) -->
+  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-950/95 backdrop-blur flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white">CDT</div>
+        <div>
+          <h2 id="authTitle" class="text-lg font-semibold text-white">管理员登录</h2>
+          <p id="authSubtitle" class="text-xs text-slate-400">请输入管理员密码或使用 HTTPS Passkey 通行密钥</p>
+        </div>
+      </div>
+      <form id="authForm" class="space-y-3">
+        <label class="block">
+          <span class="text-xs text-slate-400">管理员密码（至少 6 位）</span>
+          <input id="authPassword" type="password" required minlength="6" placeholder="请输入管理员密码" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" />
+        </label>
+        <label id="authConfirmWrap" class="hidden block">
+          <span class="text-xs text-slate-400">确认管理员密码</span>
+          <input id="authPasswordConfirm" type="password" minlength="6" placeholder="请再次输入密码" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500" />
+        </label>
+        <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">登录控制台</button>
+      </form>
+      <div id="passkeyLoginWrap" class="hidden pt-2 border-t border-slate-800 space-y-2">
+        <button type="button" id="passkeyLoginBtn" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">使用 Passkey 通行密钥登录</button>
+        <p class="text-[11px] text-slate-400 text-center">支持 Face ID / Touch ID / Windows Hello / 硬件密钥（需 HTTPS）</p>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- TAB 1: SERVERS -->
+    <section id="tab-servers" class="tab-panel space-y-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <h2 class="text-base font-semibold text-white">添加阿里云 ECS 服务器到智能轮换池</h2>
+        <p class="text-xs text-slate-400 mt-1">最低 2 台健康机器即可开启智能轮换；AccessKey Secret 在服务端以 AES-256-GCM 加密落盘，不会明文返回。</p>
+        <form id="addServerForm" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <label class="block">
+            <span class="text-xs text-slate-400">节点名称</span>
+            <input id="fName" required placeholder="如 SG-Node-01" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">站点类型</span>
+            <select id="fSite" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white">
+              <option value="intl">阿里云国际站 (USD)</option>
+              <option value="china">阿里云中国站 (CNY)</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">地域 (RegionId)</span>
+            <input id="fRegion" required value="cn-hongkong" placeholder="香港 cn-hongkong / 新加坡 ap-southeast-1" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">实例 ID (InstanceId)</span>
+            <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">AccessKey ID</span>
+            <input id="fAkID" required placeholder="LTAI5t..." class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">AccessKey Secret</span>
+            <input id="fAkSecret" type="password" required placeholder="输入 RAM Secret" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">流量上限 (GB)</span>
+            <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">金额上限 ($)</span>
+            <div class="mt-1 flex gap-2">
+              <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+              <button type="submit" class="shrink-0 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">添加</button>
+            </div>
+          </label>
+          <label class="sm:col-span-2 lg:col-span-4 inline-flex items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+            <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-indigo-600" />
+            <span>启用<strong>抢占式实例保活</strong>（当班被抢占停机自动拉起，连续失败 3 次自动故障转移；阈值熔断与闲时关机始终优先于保活）</span>
+          </label>
+        </form>
+      </div>
+
+      <div id="serversGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- TAB 2: SMART STRATEGY -->
+    <section id="tab-strategy" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-7 space-y-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs font-semibold text-indigo-400">配置 1 / 4 · 使用时段</span>
+              <h2 class="text-base font-semibold text-white mt-0.5">每天什么时间段使用机器？</h2>
+              <p class="text-xs text-slate-400 mt-1">非使用时段系统自动对全池执行集体节省停机 (StopCharging)。</p>
+            </div>
+            <label class="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+              <input id="pEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
+              启用智能轮换
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+              <span class="text-xs text-slate-400">开始使用时间</span>
+              <select id="pActiveStart" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">结束使用时间</span>
+              <select id="pActiveEnd" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+            </label>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div>
+            <span class="text-xs font-semibold text-amber-400">配置 2 / 4 · 高峰期均衡</span>
+            <h2 class="text-base font-semibold text-white mt-0.5">每天的高峰期是几点？</h2>
+            <p class="text-xs text-slate-400 mt-1">系统自动按池内健康机器数均分高峰时长（最低 2 台）；高峰「单班突发上限」优先级高于全局 30GB 刷新差值急停。</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label class="block">
+              <span class="text-xs text-slate-400">高峰开始</span>
+              <select id="pPeakStart" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">高峰结束</span>
+              <select id="pPeakEnd" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white"></select>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">单班突发上限 (GB)</span>
+              <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            </label>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div>
+            <span class="text-xs font-semibold text-indigo-400">配置 3 / 4 · 轮换风格</span>
+            <h2 class="text-base font-semibold text-white mt-0.5">选择多机轮换模式</h2>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button type="button" data-strategy="smart_hybrid" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
+              <div class="text-sm font-semibold text-white">智能高峰均衡</div>
+              <p class="text-xs text-slate-400 mt-1.5">闲时全关，平峰稳态，高峰按机数自动均分。</p>
+            </button>
+            <button type="button" data-strategy="exhaust_sequential" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
+              <div class="text-sm font-semibold text-white">顺序榨干接力</div>
+              <p class="text-xs text-slate-400 mt-1.5">单机一直用到流量/金额触线再自动切下一台。</p>
+            </button>
+            <button type="button" data-strategy="continuous_round_robin" class="strategy-card text-left p-3.5 rounded-xl border border-slate-700 bg-slate-950/70 hover:border-indigo-500 transition">
+              <div class="text-sm font-semibold text-white">持续均摊轮换</div>
+              <p class="text-xs text-slate-400 mt-1.5">全活跃时段按剩余健康度持续均匀轮换。</p>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div>
+            <span class="text-xs font-semibold text-indigo-400">配置 4 / 4 · 默认双上限</span>
+            <h2 class="text-base font-semibold text-white mt-0.5">单机默认流量与金额上限</h2>
+            <p class="text-xs text-slate-400 mt-1">内部统一内置 30GB 流量安全垫与 $0.05 金额安全垫，无需手动配置缓冲。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+              <span class="text-xs text-slate-400">默认流量上限 (GB)</span>
+              <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">默认金额上限 ($)</span>
+              <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 sticky top-28">
+          <h3 class="text-base font-semibold text-white">内置保护规则与保存</h3>
+          <ul class="space-y-2 text-xs text-slate-300 leading-relaxed">
+            <li class="p-3 rounded-xl bg-slate-950 border border-slate-800"><strong>内部统一缓冲：</strong>流量上限自动预留 30GB（默认 200GB → 170GB 停机）；金额上限自动预留 $0.05（默认 $0.50 → $0.45 停机）。</li>
+            <li class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-200"><strong>高峰优先级：</strong>高峰期单班突发上限优先于全局 30GB 刷新差值规则，防止高峰业务被提前误切。</li>
+            <li class="p-3 rounded-xl bg-slate-950 border border-slate-800"><strong>刷新差值急停：</strong>非高峰两次刷新流量差 &gt; 30GB、或全时段两次刷新金额差 &gt; $0.05，立即停机并切机。</li>
+          </ul>
+          <div class="flex flex-col gap-2.5 pt-2">
+            <button type="button" id="savePoolBtn" class="w-full px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">保存智能策略</button>
+            <button type="button" id="saveAndSyncLimitsBtn" class="w-full px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">保存并同步双上限到所有现有服务器</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: TIMELINE & EVENTS -->
+    <section id="tab-events" class="tab-panel hidden space-y-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold text-white">今日 24 小时动态排班预览</h2>
+          <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">动态均衡</span>
+        </div>
+        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));"></div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-base font-semibold text-white">后端实时调度与操作日志</h2>
+        <div id="eventsList" class="space-y-2 max-h-[460px] overflow-y-auto text-xs"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: NOTIFY & POLLING -->
+    <section id="tab-notify" class="tab-panel hidden max-w-2xl space-y-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <h2 class="text-base font-semibold text-white">通知渠道与代理设置</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 border-b border-slate-800">
+          <label class="block">
+            <span class="text-xs text-slate-400">通知代理地址（支持 HTTP / HTTPS / SOCKS5，留空直连）</span>
+            <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://user:pass@ip:port" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">Telegram API 反代地址（可选，留空默认官方地址）</span>
+            <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input id="nTgEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
+          启用 Telegram Bot 通知
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-xs text-slate-400">Bot Token</span>
+            <input id="nTgToken" type="password" placeholder="123456:ABC..." class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">Chat ID</span>
+            <input id="nTgChat" placeholder="你的 Chat ID" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          </label>
+        </div>
+        <label class="flex items-center gap-2 text-sm pt-2">
+          <input id="nWhEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600" />
+          启用自定义 Webhook (POST JSON)
+        </label>
+        <input id="nWhURL" placeholder="https://example.com/webhook" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+        <div class="flex flex-wrap gap-2.5">
+          <button type="button" id="saveNotifyBtn" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">保存通知配置</button>
+          <button type="button" id="testNotifyBtn" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">发送测试通知</button>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-semibold text-white">Passkey 通行密钥保护（HTTPS）</h2>
+            <p class="text-xs text-slate-400 mt-0.5">在 HTTPS 反代域名下绑定设备生物识别或安全密钥，实现免密强认证。</p>
+          </div>
+          <span id="httpsStatusBadge" class="px-2.5 py-1 rounded-full text-xs border border-slate-700 bg-slate-800 text-slate-300">检测中...</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <input id="pkNameInput" placeholder="密钥备注（如 MacBook TouchID / iPhone）" class="flex-1 min-w-[200px] rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          <button type="button" id="registerPasskeyBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition">+ 绑定新 Passkey</button>
+        </div>
+        <div id="passkeysList" class="space-y-2 text-xs"></div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <h2 class="text-base font-semibold text-white">修改本地管理员密码</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input id="oldPwdInput" type="password" placeholder="输入原密码" class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+          <input id="newPwdInput" type="password" placeholder="输入新密码（至少 6 位）" class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white" />
+        </div>
+        <button type="button" id="changePwdBtn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-medium transition">更新管理员密码</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let appState = null;
+    let selectedStrategy = 'smart_hybrid';
+
+    function toast(msg, isErr) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl text-white text-sm shadow-xl border ' +
+        (isErr ? 'bg-rose-600 border-rose-400/40' : 'bg-indigo-600 border-indigo-400/40');
+      clearTimeout(window.__tt);
+      window.__tt = setTimeout(() => el.classList.add('hidden'), 2800);
+    }
+
+    function fmtH(h) { return String(h).padStart(2, '0') + ':00'; }
+    function fillHours(sel, allow24) {
+      sel.innerHTML = '';
+      for (let h = 0; h <= (allow24 ? 24 : 23); h++) {
+        const o = document.createElement('option');
+        o.value = h; o.textContent = fmtH(h);
+        sel.appendChild(o);
+      }
+    }
+
+    function calcWindowHours(s, e) { return s === e ? 24 : (s < e ? e - s : 24 - s + e); }
+    function inRange(h, s, e) { return s === e ? true : (s < e ? (h >= s && h < e) : (h >= s || h < e)); }
+
+    async function api(url, opts) {
+      const res = await fetch(url, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      return data;
+    }
+
+    async function loadState() {
+      try {
+        appState = await api('/api/v1/state');
+        renderAll();
+      } catch (e) {
+        toast('加载状态失败: ' + e.message, true);
+      }
+    }
+
+    function renderAll() {
+      if (!appState) return;
+      const p = appState.pool;
+      const servers = appState.servers || [];
+      const healthy = servers.filter(s => s.in_pool && !s.locked_until);
+      const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
+      const badge = document.getElementById('peakSplitBadge');
+      if (healthy.length >= 2) {
+        badge.textContent = `高峰自动均分：${healthy.length} 台机 · 每台 ${(peakHrs / healthy.length).toFixed(1)}h`;
+      } else {
+        badge.textContent = `池内健康机 ${healthy.length} 台（智能轮换最低 2 台）`;
+      }
+
+      // Populate strategy form
+      document.getElementById('pEnabled').checked = !!p.enabled;
+      document.getElementById('pActiveStart').value = p.active_start_hour;
+      document.getElementById('pActiveEnd').value = p.active_end_hour;
+      document.getElementById('pPeakStart').value = p.peak_start_hour;
+      document.getElementById('pPeakEnd').value = p.peak_end_hour;
+      document.getElementById('pPeakBurst').value = p.peak_max_slice_gb;
+      document.getElementById('pMaxTraffic').value = p.default_max_traffic_gb;
+      document.getElementById('pMaxCost').value = p.default_max_cost_usd;
+      selectedStrategy = p.strategy || 'smart_hybrid';
+      document.querySelectorAll('.strategy-card').forEach(c => c.classList.toggle('selected', c.dataset.strategy === selectedStrategy));
+
+      // Notify form
+      const n = appState.notify || {};
+      document.getElementById('nProxyURL').value = n.proxy_url || '';
+      document.getElementById('nTgApiBase').value = n.telegram_api_base || '';
+      document.getElementById('nTgEnabled').checked = !!n.telegram_enabled;
+      document.getElementById('nTgToken').value = n.telegram_bot_token || '';
+      document.getElementById('nTgChat').value = n.telegram_chat_id || '';
+      document.getElementById('nWhEnabled').checked = !!n.webhook_enabled;
+      document.getElementById('nWhURL').value = n.webhook_url || '';
+
+      renderServers(servers, p.current_server_id);
+      renderGantt(servers, p);
+      renderEvents(appState.events || []);
+    }
+
+    function renderServers(servers, currentID) {
+      const grid = document.getElementById('serversGrid');
+      if (servers.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-900 border border-slate-800 rounded-2xl text-sm text-slate-400">暂无服务器，请在上方添加至少 2 台阿里云实例即可开启智能轮换。</div>';
+        return;
+      }
+      grid.innerHTML = servers.map(s => {
+        const effT = Math.max(1, s.max_traffic_gb - 30);
+        const effC = Math.max(0.05, s.max_cost_usd - 0.05);
+        const tPct = Math.min(100, (s.used_traffic_gb / Math.max(1, s.max_traffic_gb)) * 100);
+        const cPct = Math.min(100, (s.billed_cost_usd / Math.max(0.01, s.max_cost_usd)) * 100);
+        const isDuty = s.id === currentID;
+        const stColor = s.status === 'Running' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-300 border-slate-700';
+        return `
+          <div class="bg-slate-900 border ${isDuty ? 'border-indigo-500/60' : 'border-slate-800'} rounded-2xl p-4 space-y-3 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <div class="font-semibold text-sm text-white">${s.name} ${isDuty ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-600 text-white">当班</span>' : ''}</div>
+                <span class="px-2 py-0.5 rounded-full text-xs border ${stColor}">${s.status || 'Unknown'}</span>
+              </div>
+              <div class="text-xs text-slate-400 mt-1">${s.region} · ${s.instance_id} ${s.public_ip ? '· ' + s.public_ip : ''}</div>
+              ${s.locked_until ? `<div class="mt-2 text-xs px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">本月已熔断锁定 (${s.lock_reason})</div>` : ''}
+              ${s.last_error ? `<div class="mt-2 text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200 break-all">${s.last_error}</div>` : ''}
+              <div class="mt-3 space-y-2">
+                <div>
+                  <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">CDT 流量（内部熔断 ${effT.toFixed(0)}G）</span><span>${s.used_traffic_gb.toFixed(2)} / ${s.max_traffic_gb} GB</span></div>
+                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full ${s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-sky-500'}" style="width:${tPct.toFixed(1)}%"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">本月费用（内部熔断 $${effC.toFixed(2)}）</span><span>$${s.billed_cost_usd.toFixed(3)} / $${s.max_cost_usd.toFixed(2)}</span></div>
+                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full ${s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5 text-xs">
+              <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30">开机</button>
+              <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/35 text-amber-300 border border-amber-500/30">节省停机</button>
+              <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">刷新</button>
+              <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg border ${s.keep_alive ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}">${s.keep_alive ? '保活:开' : '保活:关'}</button>
+              ${s.locked_until ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30">解锁</button>` : ''}
+              <button type="button" data-act="delete" data-id="${s.id}" class="ml-auto px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-300 border border-slate-700">删除</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function serverHeadroom(s) {
+      const effT = Math.max(1, s.max_traffic_gb - 30);
+      const effC = Math.max(0.05, s.max_cost_usd - 0.05);
+      const tR = Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT));
+      const cR = Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC));
+      return Math.min(tR, cR);
+    }
+
+    function renderGantt(servers, p) {
+      const box = document.getElementById('ganttPreview');
+      const modeBadge = document.getElementById('ganttModeBadge');
+      const healthy = servers.filter(s => s.in_pool && !s.locked_until).sort((a, b) => (a.priority - b.priority) || (a.id - b.id));
+      const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
+      const sliceHrs = healthy.length > 0 ? Math.max(1, Math.round(peakHrs / healthy.length)) : 1;
+      const dayOffset = healthy.length > 0 ? (new Date().getDate() % healthy.length) : 0;
+
+      let imbalancedBest = null;
+      let maxH = -1, minH = 2;
+      healthy.forEach(s => {
+        const h = serverHeadroom(s);
+        if (h > maxH) { maxH = h; imbalancedBest = s; }
+        if (h < minH) minH = h;
+      });
+      const isImbalanced = healthy.length >= 2 && (maxH - minH) >= 0.20;
+      if (modeBadge) {
+        modeBadge.textContent = isImbalanced
+          ? `余量纠偏中：差距 ${((maxH - minH) * 100).toFixed(0)}%，高峰优先 ${imbalancedBest.name} 顶班`
+          : (healthy.length >= 2 ? `按日动态互换高峰时段（今日偏移 +${dayOffset}）` : '单机模式');
+      }
+
+      const cells = [];
+      for (let h = 0; h < 24; h++) {
+        const active = inRange(h, p.active_start_hour, p.active_end_hour);
+        const peak = active && inRange(h, p.peak_start_hour, p.peak_end_hour);
+        let cls = 'bg-slate-800 text-slate-400 border-slate-700', lbl = '休眠';
+        if (active && healthy.length === 0) {
+          cls = 'bg-rose-600/25 text-rose-200 border-rose-500/40'; lbl = '无可用';
+        } else if (peak) {
+          let srv = imbalancedBest;
+          if (!isImbalanced) {
+            let hrsSince = h - p.peak_start_hour;
+            if (hrsSince < 0) hrsSince += 24;
+            const slotIdx = (Math.floor(hrsSince / sliceHrs) + dayOffset) % healthy.length;
+            srv = healthy[slotIdx];
+          }
+          cls = 'bg-amber-500/25 text-amber-200 border-amber-500/50';
+          lbl = srv.name.slice(0, 6);
+        } else if (active) {
+          const srv = isImbalanced ? imbalancedBest : healthy[(Math.floor(h / 6) + dayOffset) % healthy.length];
+          cls = 'bg-sky-500/20 text-sky-200 border-sky-500/40';
+          lbl = srv.name.slice(0, 6);
+        }
+        cells.push(`<div class="flex flex-col items-center p-1.5 rounded-lg border ${cls}"><span class="text-[10px] opacity-75">${String(h).padStart(2,'0')}h</span><span class="text-[11px] font-semibold mt-1 truncate max-w-full">${lbl}</span></div>`);
+      }
+      box.innerHTML = cells.join('');
+    }
+
+    function renderEvents(events) {
+      const list = document.getElementById('eventsList');
+      if (events.length === 0) {
+        list.innerHTML = '<div class="text-slate-400 py-4 text-center">暂无调度日志</div>';
+        return;
+      }
+      list.innerHTML = events.map(ev => {
+        const badge = ev.level === 'error' ? 'text-rose-300 bg-rose-500/15' : (ev.level === 'warn' ? 'text-amber-300 bg-amber-500/15' : 'text-sky-300 bg-sky-500/15');
+        return `<div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
+          <span class="text-slate-500 font-mono">${ev.time}</span>
+          <span class="px-2 py-0.5 rounded font-medium ${badge}">${ev.action}</span>
+          <span class="text-slate-200 font-medium">${ev.server}</span>
+          <span class="text-slate-400">${ev.message}</span>
+        </div>`;
+      }).join('');
+    }
+
+    async function savePool(syncLimits) {
+      const body = {
+        enabled: document.getElementById('pEnabled').checked,
+        timezone: 'Asia/Shanghai',
+        active_start_hour: Number(document.getElementById('pActiveStart').value),
+        active_end_hour: Number(document.getElementById('pActiveEnd').value),
+        peak_start_hour: Number(document.getElementById('pPeakStart').value),
+        peak_end_hour: Number(document.getElementById('pPeakEnd').value),
+        peak_max_slice_gb: Number(document.getElementById('pPeakBurst').value) || 0,
+        strategy: selectedStrategy,
+        default_max_traffic_gb: Number(document.getElementById('pMaxTraffic').value) || 200,
+        default_max_cost_usd: Number(document.getElementById('pMaxCost').value) || 0.50,
+        stop_mode: 'StopCharging',
+        make_before_break: true,
+        poll_interval_minutes: 5
+      };
+      try {
+        appState = await api('/api/v1/pool' + (syncLimits ? '?sync_limits=1' : ''), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        renderAll();
+        toast(syncLimits ? '策略已保存并同步到全池服务器' : '智能轮换策略已保存');
+      } catch (e) {
+        toast('保存失败: ' + e.message, true);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fillHours(document.getElementById('pActiveStart'), false);
+      fillHours(document.getElementById('pActiveEnd'), true);
+      fillHours(document.getElementById('pPeakStart'), false);
+      fillHours(document.getElementById('pPeakEnd'), true);
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+          document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + btn.dataset.tab));
+        });
+      });
+
+      document.querySelectorAll('.strategy-card').forEach(c => {
+        c.addEventListener('click', () => {
+          selectedStrategy = c.dataset.strategy;
+          document.querySelectorAll('.strategy-card').forEach(x => x.classList.toggle('selected', x === c));
+        });
+      });
+
+      document.getElementById('savePoolBtn').addEventListener('click', () => savePool(false));
+      document.getElementById('saveAndSyncLimitsBtn').addEventListener('click', () => savePool(true));
+
+      document.getElementById('addServerForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        try {
+          appState = await api('/api/v1/servers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: document.getElementById('fName').value.trim(),
+              site: document.getElementById('fSite').value,
+              region: document.getElementById('fRegion').value.trim(),
+              instance_id: document.getElementById('fInstanceID').value.trim(),
+              access_key_id: document.getElementById('fAkID').value.trim(),
+              access_key_secret: document.getElementById('fAkSecret').value.trim(),
+              max_traffic_gb: Number(document.getElementById('fMaxGB').value) || 200,
+              max_cost_usd: Number(document.getElementById('fMaxUSD').value) || 0.50,
+              keep_alive: document.getElementById('fKeepAlive').checked
+            })
+          });
+          e.target.reset();
+          document.getElementById('fRegion').value = 'cn-hongkong';
+          document.getElementById('fKeepAlive').checked = true;
+          document.getElementById('fMaxGB').value = appState.pool.default_max_traffic_gb;
+          document.getElementById('fMaxUSD').value = appState.pool.default_max_cost_usd;
+          renderAll();
+          toast('服务器已加入智能轮换池，正在同步状态...');
+          setTimeout(loadState, 3000);
+        } catch (err) {
+          toast('添加失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('serversGrid').addEventListener('click', async e => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        const id = btn.dataset.id, act = btn.dataset.act;
+        try {
+          if (act === 'delete') {
+            appState = await api(`/api/v1/servers/${id}`, { method: 'DELETE' });
+          } else {
+            appState = await api(`/api/v1/servers/${id}/${act}`, { method: 'POST' });
+          }
+          renderAll();
+          toast('操作已执行: ' + act);
+        } catch (err) {
+          toast('操作失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('refreshAllBtn').addEventListener('click', async () => {
+        try {
+          await api('/api/v1/refresh-all', { method: 'POST' });
+          toast('已触发全池同步，3 秒后自动刷新');
+          setTimeout(loadState, 3000);
+        } catch (err) {
+          toast('刷新失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('testNotifyBtn').addEventListener('click', async () => {
+        try {
+          const res = await api('/api/v1/notify/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              proxy_url: document.getElementById('nProxyURL').value.trim(),
+              telegram_api_base: document.getElementById('nTgApiBase').value.trim(),
+              telegram_enabled: document.getElementById('nTgEnabled').checked,
+              telegram_bot_token: document.getElementById('nTgToken').value.trim(),
+              telegram_chat_id: document.getElementById('nTgChat').value.trim(),
+              webhook_enabled: document.getElementById('nWhEnabled').checked,
+              webhook_url: document.getElementById('nWhURL').value.trim()
+            })
+          });
+          toast(res.message || '测试通知发送成功');
+          loadState();
+        } catch (err) {
+          toast('测试发送失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('saveNotifyBtn').addEventListener('click', async () => {
+        try {
+          appState = await api('/api/v1/notify', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              proxy_url: document.getElementById('nProxyURL').value.trim(),
+              telegram_api_base: document.getElementById('nTgApiBase').value.trim(),
+              telegram_enabled: document.getElementById('nTgEnabled').checked,
+              telegram_bot_token: document.getElementById('nTgToken').value.trim(),
+              telegram_chat_id: document.getElementById('nTgChat').value.trim(),
+              webhook_enabled: document.getElementById('nWhEnabled').checked,
+              webhook_url: document.getElementById('nWhURL').value.trim()
+            })
+          });
+          renderAll();
+          toast('通知配置已保存');
+        } catch (err) {
+          toast('保存失败: ' + err.message, true);
+        }
+      });
+
+      // WebAuthn Base64URL helpers
+      function b64uToBuf(str) {
+        const pad = '='.repeat((4 - (str.length % 4)) % 4);
+        const raw = atob((str + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        const arr = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+        return arr.buffer;
+      }
+      function bufToB64u(buf) {
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      let authStatus = { initialized: false, authenticated: false, has_passkeys: false, is_https: false };
+
+      function renderPasskeys(list) {
+        const box = document.getElementById('passkeysList');
+        const badge = document.getElementById('httpsStatusBadge');
+        const isSecure = window.isSecureContext || authStatus.is_https;
+        badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 反代启用 Passkey）';
+        badge.className = isSecure
+          ? 'px-2.5 py-1 rounded-full text-xs border border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+          : 'px-2.5 py-1 rounded-full text-xs border border-amber-500/30 bg-amber-500/15 text-amber-300';
+        if (!list || list.length === 0) {
+          box.innerHTML = '<div class="text-slate-400 py-2">尚未绑定 Passkey 通行密钥</div>';
+          return;
+        }
+        box.innerHTML = list.map(pk => `
+          <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
+            <div><span class="text-slate-200 font-medium">${pk.name}</span> <span class="text-slate-500 ml-2">绑定于 ${pk.created_at}</span></div>
+            <button type="button" data-del-pk="${pk.id}" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-300 border border-slate-700">删除</button>
+          </div>
+        `).join('');
+      }
+
+      async function checkAuthAndBoot() {
+        try {
+          authStatus = await api('/api/v1/auth/status');
+          const gate = document.getElementById('authGate');
+          if (!authStatus.authenticated) {
+            gate.classList.remove('hidden');
+            const isInit = authStatus.initialized;
+            document.getElementById('authTitle').textContent = isInit ? '管理员登录' : '首次安全初始化';
+            document.getElementById('authSubtitle').textContent = isInit ? '请输入本地管理员密码或使用 HTTPS Passkey 登录' : '请为面板设置本地管理员密码（保存后立即启用认证保护）';
+            document.getElementById('authSubmitBtn').textContent = isInit ? '密码登录' : '设置密码并进入';
+            document.getElementById('authConfirmWrap').classList.toggle('hidden', isInit);
+            document.getElementById('passkeyLoginWrap').classList.toggle('hidden', !(isInit && authStatus.has_passkeys && window.PublicKeyCredential));
+          } else {
+            gate.classList.add('hidden');
+            await loadState();
+            renderPasskeys((appState && appState.auth && appState.auth.passkeys) || []);
+          }
+        } catch (e) {
+          toast('检查认证状态失败: ' + e.message, true);
+        }
+      }
+
+      document.getElementById('authForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const pwd = document.getElementById('authPassword').value;
+        try {
+          if (!authStatus.initialized) {
+            const cfm = document.getElementById('authPasswordConfirm').value;
+            if (pwd !== cfm) { toast('两次输入的密码不一致', true); return; }
+            await api('/api/v1/auth/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
+            toast('管理员密码初始化成功');
+          } else {
+            await api('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
+            toast('登录成功');
+          }
+          document.getElementById('authPassword').value = '';
+          document.getElementById('authPasswordConfirm').value = '';
+          await checkAuthAndBoot();
+        } catch (err) {
+          toast(err.message, true);
+        }
+      });
+
+      document.getElementById('passkeyLoginBtn').addEventListener('click', async () => {
+        if (!window.isSecureContext || !navigator.credentials) {
+          toast('Passkey 登录需要在 HTTPS 域名下使用', true);
+          return;
+        }
+        try {
+          const opts = await api('/api/v1/auth/passkey/login/begin', { method: 'POST' });
+          const cred = await navigator.credentials.get({
+            publicKey: {
+              challenge: b64uToBuf(opts.challenge),
+              rpId: opts.rp_id,
+              allowCredentials: (opts.allow_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
+              userVerification: 'preferred',
+              timeout: 60000
+            }
+          });
+          await api('/api/v1/auth/passkey/login/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: cred.id,
+              client_data_b64: bufToB64u(cred.response.clientDataJSON),
+              auth_data_b64: bufToB64u(cred.response.authenticatorData),
+              signature_b64: bufToB64u(cred.response.signature)
+            })
+          });
+          toast('Passkey 登录成功');
+          await checkAuthAndBoot();
+        } catch (err) {
+          toast('Passkey 登录失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('registerPasskeyBtn').addEventListener('click', async () => {
+        if (!window.isSecureContext || !navigator.credentials) {
+          toast('绑定 Passkey 需要在 HTTPS 域名（如 Nginx/Caddy 反代）下打开面板', true);
+          return;
+        }
+        try {
+          const opts = await api('/api/v1/auth/passkey/register/begin', { method: 'POST' });
+          const cred = await navigator.credentials.create({
+            publicKey: {
+              challenge: b64uToBuf(opts.challenge),
+              rp: { id: opts.rp_id, name: opts.rp_name },
+              user: { id: new Uint8Array([1, 2, 3, 4]), name: 'admin', displayName: 'CDT Admin' },
+              pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+              excludeCredentials: (opts.exclude_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
+              authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+              timeout: 60000
+            }
+          });
+          if (!cred.response.getPublicKey || !cred.response.getAuthenticatorData) {
+            toast('当前浏览器不支持 WebAuthn L2 getPublicKey 接口，请升级 Chrome/Safari/Edge', true);
+            return;
+          }
+          appState = await api('/api/v1/auth/passkey/register/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: cred.id,
+              name: document.getElementById('pkNameInput').value.trim(),
+              client_data_b64: bufToB64u(cred.response.clientDataJSON),
+              auth_data_b64: bufToB64u(cred.response.getAuthenticatorData()),
+              public_key_b64: bufToB64u(cred.response.getPublicKey())
+            })
+          });
+          document.getElementById('pkNameInput').value = '';
+          renderPasskeys((appState.auth && appState.auth.passkeys) || []);
+          toast('Passkey 绑定成功');
+        } catch (err) {
+          toast('绑定 Passkey 失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('passkeysList').addEventListener('click', async e => {
+        const btn = e.target.closest('button[data-del-pk]');
+        if (!btn) return;
+        try {
+          appState = await api('/api/v1/auth/passkey/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: btn.dataset.delPk })
+          });
+          renderPasskeys((appState.auth && appState.auth.passkeys) || []);
+          toast('已删除该 Passkey');
+        } catch (err) {
+          toast('删除失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('changePwdBtn').addEventListener('click', async () => {
+        try {
+          await api('/api/v1/auth/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              old_password: document.getElementById('oldPwdInput').value,
+              new_password: document.getElementById('newPwdInput').value
+            })
+          });
+          document.getElementById('oldPwdInput').value = '';
+          document.getElementById('newPwdInput').value = '';
+          toast('管理员密码已修改');
+        } catch (err) {
+          toast('修改密码失败: ' + err.message, true);
+        }
+      });
+
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await api('/api/v1/auth/logout', { method: 'POST' });
+        await checkAuthAndBoot();
+      });
+
+      checkAuthAndBoot();
+      setInterval(() => { if (authStatus.authenticated) loadState(); }, 30000);
+    });
+  </script>
+</body>
+</html>

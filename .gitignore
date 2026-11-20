@@ -1,0 +1,7 @@
+data/
+*.key
+*.sqlite
+*.db
+*.tar.gz
+*.zip
+.DS_Store
