@@ -96,13 +96,15 @@ type PoolConfig struct {
 
 // NotifyConfig stores optional Telegram / Webhook notification settings.
 type NotifyConfig struct {
-	ProxyURL         string `json:"proxy_url"`         // 可选：http://、https://、socks5:// 代理地址
-	TelegramEnabled  bool   `json:"telegram_enabled"`
-	TelegramAPIBase  string `json:"telegram_api_base"` // 可选：自定义 Telegram 反代地址，留空默认 https://api.telegram.org
-	TelegramBotToken string `json:"telegram_bot_token,omitempty"`
-	TelegramChatID   string `json:"telegram_chat_id"`
-	WebhookEnabled   bool   `json:"webhook_enabled"`
-	WebhookURL       string `json:"webhook_url"`
+	ProxyURL             string `json:"proxy_url"`               // 可选：http://、https://、socks5:// 代理地址
+	TelegramEnabled      bool   `json:"telegram_enabled"`
+	TelegramAPIBase      string `json:"telegram_api_base"`       // 可选：自定义 Telegram 反代地址，留空默认 https://api.telegram.org
+	TelegramBotToken     string `json:"telegram_bot_token,omitempty"`
+	TelegramChatID       string `json:"telegram_chat_id"`
+	WebhookEnabled       bool   `json:"webhook_enabled"`
+	WebhookURL           string `json:"webhook_url"`
+	WeeklyReportEnabled  bool   `json:"weekly_report_enabled"`   // 每周一 08:00 定时发送流量与费用周报
+	LastWeeklyReportDate string `json:"last_weekly_report_date"` // YYYY-MM-DD 防止同一天重复推送
 }
 
 // EventLog records every automated or manual action.
@@ -159,6 +161,9 @@ func DefaultState() AppState {
 			StopMode:            StopModeStopCharging,
 			MakeBeforeBreak:     true,
 			PollIntervalMinutes: 5,
+		},
+		Notify: NotifyConfig{
+			WeeklyReportEnabled: true,
 		},
 		Servers: []Server{},
 		Events:  []EventLog{},

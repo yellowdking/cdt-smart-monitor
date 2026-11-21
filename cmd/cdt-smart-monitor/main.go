@@ -71,6 +71,7 @@ func main() {
 	mux.HandleFunc("/api/v1/pool", app.requireAuth(app.handleSavePool))
 	mux.HandleFunc("/api/v1/notify", app.requireAuth(app.handleSaveNotify))
 	mux.HandleFunc("/api/v1/notify/test", app.requireAuth(app.handleTestNotify))
+	mux.HandleFunc("/api/v1/notify/weekly-test", app.requireAuth(app.handleTestWeeklyReport))
 	mux.HandleFunc("/api/v1/servers", app.requireAuth(app.handleServers))
 	mux.HandleFunc("/api/v1/servers/", app.requireAuth(app.handleServerAction))
 	mux.HandleFunc("/api/v1/refresh-all", app.requireAuth(app.handleRefreshAll))
@@ -121,6 +122,7 @@ func (a *App) runScheduler(ctx context.Context) {
 				lastPoll = now
 			}
 			a.evaluateAndExecutePool(ctx, now)
+			a.maybeSendWeeklyReport(ctx, now)
 		}
 	}
 }
@@ -354,6 +356,7 @@ func (a *App) handleSaveNotify(w http.ResponseWriter, r *http.Request) {
 		if req.TelegramBotToken == "********" || req.TelegramBotToken == "" {
 			req.TelegramBotToken = st.Notify.TelegramBotToken
 		}
+		req.LastWeeklyReportDate = st.Notify.LastWeeklyReportDate
 		st.Notify = req
 		return nil
 	})
@@ -449,6 +452,59 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid server id"})
+		return
+	}
+
+	if r.Method == http.MethodPut && len(parts) == 1 {
+		var req domain.Server
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var updatedName string
+		err := a.store.Update(func(st *domain.AppState) error {
+			for i := range st.Servers {
+				if st.Servers[i].ID == id {
+					if strings.TrimSpace(req.Name) != "" {
+						st.Servers[i].Name = strings.TrimSpace(req.Name)
+					}
+					if req.Site != "" {
+						st.Servers[i].Site = req.Site
+					}
+					if strings.TrimSpace(req.Region) != "" {
+						st.Servers[i].Region = strings.TrimSpace(req.Region)
+					}
+					if strings.TrimSpace(req.InstanceID) != "" {
+						st.Servers[i].InstanceID = strings.TrimSpace(req.InstanceID)
+					}
+					if strings.TrimSpace(req.AccessKeyID) != "" {
+						st.Servers[i].AccessKeyID = strings.TrimSpace(req.AccessKeyID)
+					}
+					if req.AccessKeySecret != "" && req.AccessKeySecret != "********" {
+						st.Servers[i].AccessKeySecret = req.AccessKeySecret
+					}
+					if req.MaxTrafficGB > 0 {
+						st.Servers[i].MaxTrafficGB = req.MaxTrafficGB
+					}
+					if req.MaxCostUSD > 0 {
+						st.Servers[i].MaxCostUSD = req.MaxCostUSD
+					}
+					if req.Priority > 0 {
+						st.Servers[i].Priority = req.Priority
+					}
+					st.Servers[i].KeepAlive = req.KeepAlive
+					updatedName = st.Servers[i].Name
+					return nil
+				}
+			}
+			return fmt.Errorf("server not found")
+		})
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		a.store.AddEvent("info", updatedName, "更新节点配置", "已保存节点参数与凭据")
+		writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
 		return
 	}
 
@@ -851,4 +907,91 @@ func (a *App) handlePasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	a.auth.CreateSession(w, r)
 	a.store.AddEvent("info", "安全", "Passkey 登录", fmt.Sprintf("密钥 %s（IP: %s）", pkName, ip))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- Weekly Monday 08:00 Report ---
+
+func (a *App) buildWeeklyReport(snap domain.AppState, localNow time.Time) (string, string) {
+	title := fmt.Sprintf("CDT Smart Monitor 周报 (%s)", localNow.Format("2006-01-02"))
+	var b strings.Builder
+	var totalGB, totalUSD float64
+	dutyName := "无"
+	for _, s := range snap.Servers {
+		totalGB += s.UsedTrafficGB
+		totalUSD += s.BilledCostUSD
+		if s.ID == snap.Pool.CurrentServerID {
+			dutyName = s.Name
+		}
+	}
+	fmt.Fprintf(&b, "总流量: %.2f GB | 总费用: $%.3f | 当前当班: %s\n", totalGB, totalUSD, dutyName)
+	for _, s := range snap.Servers {
+		icon := "⚪"
+		if s.LockedUntil != "" {
+			icon = "🔴"
+		} else if s.Status == domain.StatusRunning {
+			icon = "🟢"
+		}
+		fmt.Fprintf(&b, "%s %s (%s): %.2f/%.0f GB | $%.3f/$%.2f\n",
+			icon, s.Name, s.Status, s.UsedTrafficGB, s.MaxTrafficGB, s.BilledCostUSD, s.MaxCostUSD)
+	}
+	if len(snap.Servers) == 0 {
+		b.WriteString("当前轮换池暂无服务器。")
+	}
+	return title, strings.TrimSpace(b.String())
+}
+
+func (a *App) maybeSendWeeklyReport(ctx context.Context, now time.Time) {
+	snap := a.store.SnapshotRaw()
+	if !snap.Notify.WeeklyReportEnabled {
+		return
+	}
+	loc, err := time.LoadLocation(snap.Pool.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	// Every Monday at 08:00 (08:00..08:09 window, sent once per date)
+	if localNow.Weekday() != time.Monday || localNow.Hour() != 8 || localNow.Minute() > 9 {
+		return
+	}
+	today := localNow.Format("2006-01-02")
+	if snap.Notify.LastWeeklyReportDate == today {
+		return
+	}
+	title, body := a.buildWeeklyReport(snap, localNow)
+	a.notifier.Send(ctx, snap.Notify, title, body)
+	_ = a.store.Update(func(st *domain.AppState) error {
+		st.Notify.LastWeeklyReportDate = today
+		return nil
+	})
+	a.store.AddEvent("info", "周报推送", "周一 08:00 周报", "已推送每周流量与费用汇总")
+}
+
+func (a *App) handleTestWeeklyReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req domain.NotifyConfig
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	snap := a.store.SnapshotRaw()
+	if req.TelegramBotToken == "********" || req.TelegramBotToken == "" {
+		req.TelegramBotToken = snap.Notify.TelegramBotToken
+	}
+	loc, err := time.LoadLocation(snap.Pool.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	title, body := a.buildWeeklyReport(snap, time.Now().In(loc))
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	sent, err := a.notifier.SendSync(ctx, req, title, body)
+	if err != nil {
+		a.store.AddEvent("error", "周报推送", "手动发送失败", err.Error())
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	msg := "周报已立即发送至: " + strings.Join(sent, ", ")
+	a.store.AddEvent("info", "周报推送", "手动发送成功", msg)
+	writeJSON(w, http.StatusOK, map[string]string{"message": msg})
 }
