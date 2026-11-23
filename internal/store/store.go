@@ -75,6 +75,13 @@ func Open(dataDir string) (*Store, error) {
 		if loaded.Auth.Passkeys == nil {
 			loaded.Auth.Passkeys = []domain.PasskeyCredential{}
 		}
+		if loaded.Pool.ManualAutoRevertMode == "" {
+			loaded.Pool.ManualAutoRevertMode = domain.ManualRevertNextSlot
+			loaded.Pool.ManualOverridesAutoResetDaily = true
+		}
+		if loaded.Pool.ManualAutoRevertMinutes <= 0 {
+			loaded.Pool.ManualAutoRevertMinutes = 120
+		}
 		s.state = loaded
 	} else if !os.IsNotExist(err) {
 		return nil, err
@@ -157,6 +164,15 @@ func cloneState(st domain.AppState) domain.AppState {
 		cp.Auth.Passkeys = []domain.PasskeyCredential{}
 	} else {
 		cp.Auth.Passkeys = append([]domain.PasskeyCredential(nil), st.Auth.Passkeys...)
+	}
+	if len(st.Pool.ManualHourlyOverrides) > 0 {
+		m := make(map[int]int64, len(st.Pool.ManualHourlyOverrides))
+		for k, v := range st.Pool.ManualHourlyOverrides {
+			m[k] = v
+		}
+		cp.Pool.ManualHourlyOverrides = m
+	} else {
+		cp.Pool.ManualHourlyOverrides = nil
 	}
 	return cp
 }

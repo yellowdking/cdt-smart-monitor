@@ -28,6 +28,16 @@ const (
 )
 
 const (
+	ManualRevertNextSlot = "next_slot"
+	ManualRevertDuration = "duration"
+	ManualRevertNextDay  = "next_day"
+	ManualRevertNever    = "never"
+
+	// ManualSlotForceIdle is the sentinel ServerID in ManualHourlyOverrides to force sleep for an hour.
+	ManualSlotForceIdle int64 = -1
+)
+
+const (
 	StatusRunning  = "Running"
 	StatusStarting = "Starting"
 	StatusStopping = "Stopping"
@@ -73,7 +83,7 @@ type Server struct {
 	LastActiveAt    time.Time `json:"last_active_at"`
 }
 
-// PoolConfig stores the streamlined 4-part smart rotation configuration.
+// PoolConfig stores the streamlined smart rotation & manual override configuration.
 type PoolConfig struct {
 	Enabled             bool             `json:"enabled"`
 	Timezone            string           `json:"timezone"`
@@ -96,6 +106,15 @@ type PoolConfig struct {
 	PeakOverrideUntil time.Time `json:"peak_override_until,omitempty"`
 	// LastAllExhaustedAlertAt throttles repeated all-exhausted notifications.
 	LastAllExhaustedAlertAt time.Time `json:"last_all_exhausted_alert_at,omitempty"`
+	// Mihomo-style manual duty selection & auto-revert back to smart auto-scheduling
+	ManualServerID                int64         `json:"manual_server_id,omitempty"`
+	ManualSelectedAt              time.Time     `json:"manual_selected_at,omitempty"`
+	ManualUntil                   time.Time     `json:"manual_until,omitempty"`
+	ManualAutoRevertMode          string        `json:"manual_auto_revert_mode"`           // "next_slot" | "duration" | "next_day" | "never"
+	ManualAutoRevertMinutes       int           `json:"manual_auto_revert_minutes"`        // used when mode == "duration" (default 120)
+	ManualScheduleDate            string        `json:"manual_schedule_date,omitempty"`    // YYYY-MM-DD in Pool.Timezone
+	ManualHourlyOverrides         map[int]int64 `json:"manual_hourly_overrides,omitempty"` // hour(0..23) -> serverID (>0) or -1 (force idle)
+	ManualOverridesAutoResetDaily bool          `json:"manual_overrides_auto_reset_daily"` // auto-clear hourly overrides next day
 }
 
 // NotifyConfig stores optional Telegram / Webhook notification settings.
@@ -155,19 +174,22 @@ func DefaultState() AppState {
 			Passkeys: []PasskeyCredential{},
 		},
 		Pool: PoolConfig{
-			Enabled:             true,
-			Timezone:            "Asia/Shanghai",
-			ActiveStartHour:     8,
-			ActiveEndHour:       24,
-			PeakStartHour:       18,
-			PeakEndHour:         24,
-			PeakMaxSliceGB:      35,
-			Strategy:            StrategySmartHybrid,
-			DefaultMaxTrafficGB: 200,
-			DefaultMaxCostUSD:   0.50,
-			StopMode:            StopModeStopCharging,
-			MakeBeforeBreak:     true,
-			PollIntervalMinutes: 5,
+			Enabled:                       true,
+			Timezone:                      "Asia/Shanghai",
+			ActiveStartHour:               8,
+			ActiveEndHour:                 24,
+			PeakStartHour:                 18,
+			PeakEndHour:                   24,
+			PeakMaxSliceGB:                35,
+			Strategy:                      StrategySmartHybrid,
+			DefaultMaxTrafficGB:           200,
+			DefaultMaxCostUSD:             0.50,
+			StopMode:                      StopModeStopCharging,
+			MakeBeforeBreak:               true,
+			PollIntervalMinutes:           5,
+			ManualAutoRevertMode:          ManualRevertNextSlot,
+			ManualAutoRevertMinutes:       120,
+			ManualOverridesAutoResetDaily: true,
 		},
 		Notify: NotifyConfig{
 			WeeklyReportEnabled: true,

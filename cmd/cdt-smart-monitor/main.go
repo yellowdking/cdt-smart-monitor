@@ -89,6 +89,8 @@ func main() {
 	// Protected API endpoints
 	mux.HandleFunc("/api/v1/state", app.requireAuth(app.handleGetState))
 	mux.HandleFunc("/api/v1/pool", app.requireAuth(app.handleSavePool))
+	mux.HandleFunc("/api/v1/pool/manual", app.requireAuth(app.handlePoolManual))
+	mux.HandleFunc("/api/v1/pool/schedule", app.requireAuth(app.handlePoolSchedule))
 	mux.HandleFunc("/api/v1/notify", app.requireAuth(app.handleSaveNotify))
 	mux.HandleFunc("/api/v1/notify/test", app.requireAuth(app.handleTestNotify))
 	mux.HandleFunc("/api/v1/notify/weekly-test", app.requireAuth(app.handleTestWeeklyReport))
@@ -400,6 +402,27 @@ func (a *App) evaluateAndExecutePool(ctx context.Context, now time.Time) {
 		}
 	}
 
+	if dec.ClearManualSelection {
+		_ = a.store.Update(func(st *domain.AppState) error {
+			st.Pool.ManualServerID = 0
+			st.Pool.ManualSelectedAt = time.Time{}
+			st.Pool.ManualUntil = time.Time{}
+			return nil
+		})
+		if dec.ClearManualReason != "" {
+			a.store.AddEvent("info", "轮换池", "自动切回智能排班", dec.ClearManualReason)
+		}
+	}
+
+	if dec.ResetExpiredOverrides {
+		_ = a.store.Update(func(st *domain.AppState) error {
+			st.Pool.ManualHourlyOverrides = nil
+			st.Pool.ManualScheduleDate = ""
+			return nil
+		})
+		a.store.AddEvent("info", "轮换池", "新一日重置排班", "昨日手动排班已自动恢复为智能动态排班")
+	}
+
 	if dec.ResetSliceTracking && dec.TargetServerID != 0 {
 		srv := serverMap[dec.TargetServerID]
 		_ = a.store.Update(func(st *domain.AppState) error {
@@ -418,6 +441,19 @@ func (a *App) evaluateAndExecutePool(ctx context.Context, now time.Time) {
 
 // --- HTTP Handlers ---
 
+type stateResponse struct {
+	domain.AppState
+	Schedule policy.DailySchedule `json:"schedule"`
+}
+
+func (a *App) buildStateResponse(now time.Time) stateResponse {
+	masked := a.store.SnapshotMasked()
+	return stateResponse{
+		AppState: masked,
+		Schedule: policy.BuildDailySchedule(masked.Pool, masked.Servers, now),
+	}
+}
+
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -433,7 +469,7 @@ func (a *App) handleGetState(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+	writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
 }
 
 func (a *App) handleSavePool(w http.ResponseWriter, r *http.Request) {
@@ -475,6 +511,16 @@ func (a *App) handleSavePool(w http.ResponseWriter, r *http.Request) {
 	default:
 		req.Strategy = domain.StrategySmartHybrid
 	}
+	switch req.ManualAutoRevertMode {
+	case domain.ManualRevertNextSlot, domain.ManualRevertDuration, domain.ManualRevertNextDay, domain.ManualRevertNever:
+	default:
+		req.ManualAutoRevertMode = domain.ManualRevertNextSlot
+	}
+	if req.ManualAutoRevertMinutes < 15 {
+		req.ManualAutoRevertMinutes = 120
+	} else if req.ManualAutoRevertMinutes > 1440 {
+		req.ManualAutoRevertMinutes = 1440
+	}
 
 	applyAll := r.URL.Query().Get("sync_limits") == "1"
 	err := a.store.Update(func(st *domain.AppState) error {
@@ -483,6 +529,11 @@ func (a *App) handleSavePool(w http.ResponseWriter, r *http.Request) {
 		req.CurrentSliceStartTrafficGB = st.Pool.CurrentSliceStartTrafficGB
 		req.PeakOverrideUntil = st.Pool.PeakOverrideUntil
 		req.LastAllExhaustedAlertAt = st.Pool.LastAllExhaustedAlertAt
+		req.ManualServerID = st.Pool.ManualServerID
+		req.ManualSelectedAt = st.Pool.ManualSelectedAt
+		req.ManualUntil = st.Pool.ManualUntil
+		req.ManualScheduleDate = st.Pool.ManualScheduleDate
+		req.ManualHourlyOverrides = st.Pool.ManualHourlyOverrides
 		st.Pool = req
 		if applyAll {
 			for i := range st.Servers {
@@ -496,8 +547,232 @@ func (a *App) handleSavePool(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	a.store.AddEvent("info", "轮换池", "更新策略", fmt.Sprintf("模式=%s，使用时段=%02d:00-%02d:00，高峰=%02d:00-%02d:00", req.Strategy, req.ActiveStartHour, req.ActiveEndHour, req.PeakStartHour, req.PeakEndHour))
-	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+	a.store.AddEvent("info", "轮换池", "更新策略", fmt.Sprintf("模式=%s，使用时段=%02d:00-%02d:00，高峰=%02d:00-%02d:00，自动切回=%s", req.Strategy, req.ActiveStartHour, req.ActiveEndHour, req.PeakStartHour, req.PeakEndHour, req.ManualAutoRevertMode))
+	writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
+}
+
+// handlePoolManual implements Mihomo-style instant manual duty selection & one-click return to smart auto-scheduling.
+func (a *App) handlePoolManual(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ServerID         int64  `json:"server_id"`
+		RevertMode       string `json:"revert_mode"`
+		RevertMinutes    int    `json:"revert_minutes"`
+		ClearCurrentSlot *bool  `json:"clear_current_slot"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	now := time.Now()
+	snap := a.store.SnapshotRaw()
+	loc, err := time.LoadLocation(snap.Pool.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	curHour := now.In(loc).Hour()
+
+	if req.ServerID == 0 {
+		clearSlot := true
+		if req.ClearCurrentSlot != nil {
+			clearSlot = *req.ClearCurrentSlot
+		}
+		if err := a.store.Update(func(st *domain.AppState) error {
+			st.Pool.ManualServerID = 0
+			st.Pool.ManualSelectedAt = time.Time{}
+			st.Pool.ManualUntil = time.Time{}
+			if req.RevertMode != "" {
+				st.Pool.ManualAutoRevertMode = req.RevertMode
+			}
+			if req.RevertMinutes >= 15 && req.RevertMinutes <= 1440 {
+				st.Pool.ManualAutoRevertMinutes = req.RevertMinutes
+			}
+			if clearSlot && st.Pool.ManualHourlyOverrides != nil {
+				delete(st.Pool.ManualHourlyOverrides, curHour)
+			}
+			return nil
+		}); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		a.store.AddEvent("info", "轮换池", "一键切回智能排班", "已解除手动锁定，交回动态均衡排班引擎调度")
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		a.evaluateAndExecutePool(ctx, now)
+		writeJSON(w, http.StatusOK, a.buildStateResponse(now))
+		return
+	}
+
+	var target *domain.Server
+	for i := range snap.Servers {
+		if snap.Servers[i].ID == req.ServerID {
+			cp := snap.Servers[i]
+			target = &cp
+			break
+		}
+	}
+	if target == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "节点不存在"})
+		return
+	}
+	if ev := policy.EvaluateServer(*target, now); ev.ShouldCutoff {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("节点 %s 已触及安全熔断线（%s），请先解锁或调整上限", target.Name, ev.CutoffReason)})
+		return
+	}
+
+	revertMode := req.RevertMode
+	if revertMode == "" {
+		revertMode = snap.Pool.ManualAutoRevertMode
+	}
+	revertMins := req.RevertMinutes
+	if revertMins <= 0 {
+		revertMins = snap.Pool.ManualAutoRevertMinutes
+	}
+	until := policy.ComputeManualUntil(snap.Pool, snap.Servers, now, revertMode, revertMins)
+
+	if err := a.store.Update(func(st *domain.AppState) error {
+		st.Pool.ManualServerID = target.ID
+		st.Pool.ManualSelectedAt = now
+		st.Pool.ManualUntil = until
+		if revertMode != "" {
+			st.Pool.ManualAutoRevertMode = revertMode
+		}
+		if revertMins >= 15 && revertMins <= 1440 {
+			st.Pool.ManualAutoRevertMinutes = revertMins
+		}
+		return nil
+	}); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	desc := fmt.Sprintf("已手动切换至 %s 值班", target.Name)
+	if !until.IsZero() {
+		desc += fmt.Sprintf("（将于 %s 自动切回智能排班）", until.In(loc).Format("15:04"))
+	} else {
+		desc += "（持续保持直到一键切回）"
+	}
+	a.store.AddEvent("info", target.Name, "手动指定当班", desc)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	a.evaluateAndExecutePool(ctx, now)
+	writeJSON(w, http.StatusOK, a.buildStateResponse(now))
+}
+
+// handlePoolSchedule allows clicking any hour in the 24h Gantt schedule to override or reset to smart scheduling.
+func (a *App) handlePoolSchedule(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Hours          []int `json:"hours"`
+		ServerID       int64 `json:"server_id"` // 0 = follow auto, -1 = force idle, >0 = pin server
+		ResetAll       bool  `json:"reset_all"`
+		AutoResetDaily *bool `json:"auto_reset_daily"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	now := time.Now()
+	snap := a.store.SnapshotRaw()
+	loc, err := time.LoadLocation(snap.Pool.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	todayStr := localNow.Format("2006-01-02")
+	curHour := localNow.Hour()
+
+	var serverName string
+	if req.ServerID > 0 {
+		found := false
+		for _, s := range snap.Servers {
+			if s.ID == req.ServerID {
+				found = true
+				serverName = s.Name
+				break
+			}
+		}
+		if !found {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "指定节点不存在"})
+			return
+		}
+	}
+
+	affectsCurrent := req.ResetAll
+	if err := a.store.Update(func(st *domain.AppState) error {
+		if req.AutoResetDaily != nil {
+			st.Pool.ManualOverridesAutoResetDaily = *req.AutoResetDaily
+		}
+		if req.ResetAll {
+			st.Pool.ManualHourlyOverrides = nil
+			st.Pool.ManualScheduleDate = ""
+			st.Pool.ManualServerID = 0
+			st.Pool.ManualSelectedAt = time.Time{}
+			st.Pool.ManualUntil = time.Time{}
+			return nil
+		}
+		if len(req.Hours) > 0 {
+			if st.Pool.ManualOverridesAutoResetDaily && st.Pool.ManualScheduleDate != "" && st.Pool.ManualScheduleDate != todayStr {
+				st.Pool.ManualHourlyOverrides = nil
+			}
+			if st.Pool.ManualHourlyOverrides == nil {
+				st.Pool.ManualHourlyOverrides = make(map[int]int64)
+			}
+			st.Pool.ManualScheduleDate = todayStr
+			for _, h := range req.Hours {
+				if h < 0 || h > 23 {
+					continue
+				}
+				if h == curHour {
+					affectsCurrent = true
+					// Editing the current hour's slot overrides any live manual pin cleanly
+					st.Pool.ManualServerID = 0
+					st.Pool.ManualSelectedAt = time.Time{}
+					st.Pool.ManualUntil = time.Time{}
+				}
+				if req.ServerID == 0 {
+					delete(st.Pool.ManualHourlyOverrides, h)
+				} else {
+					st.Pool.ManualHourlyOverrides[h] = req.ServerID
+				}
+			}
+			if len(st.Pool.ManualHourlyOverrides) == 0 {
+				st.Pool.ManualHourlyOverrides = nil
+			}
+		}
+		return nil
+	}); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	if req.ResetAll {
+		a.store.AddEvent("info", "轮换池", "一键恢复智能排班", "已清空全部手动排班覆盖，恢复动态负载均衡排班")
+	} else if len(req.Hours) > 0 {
+		lbl := "跟随智能排班"
+		if req.ServerID == domain.ManualSlotForceIdle {
+			lbl = "强制休眠"
+		} else if req.ServerID > 0 {
+			lbl = "指定 " + serverName
+		}
+		a.store.AddEvent("info", "排班表", "手动修改排班", fmt.Sprintf("修改 %d 个时段 → %s", len(req.Hours), lbl))
+	}
+
+	if affectsCurrent {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		a.evaluateAndExecutePool(ctx, now)
+	}
+	writeJSON(w, http.StatusOK, a.buildStateResponse(now))
 }
 
 func (a *App) handleSaveNotify(w http.ResponseWriter, r *http.Request) {
@@ -522,7 +797,7 @@ func (a *App) handleSaveNotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.store.AddEvent("info", "系统", "保存通知设置", "已更新通知配置")
-	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+	writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
 }
 
 // handleTestNotify sends a real test message using current (even unsaved) form settings.
@@ -605,7 +880,7 @@ func (a *App) handleServers(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		_ = a.syncOneServer(ctx, newID)
 	}()
-	writeJSON(w, http.StatusCreated, a.store.SnapshotMasked())
+	writeJSON(w, http.StatusCreated, a.buildStateResponse(time.Now()))
 }
 
 func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
@@ -670,7 +945,7 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.store.AddEvent("info", updatedName, "更新节点配置", "已保存节点参数与凭据")
-		writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+		writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
 		return
 	}
 
@@ -689,13 +964,23 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 			if st.Pool.CurrentServerID == id {
 				st.Pool.CurrentServerID = 0
 			}
+			if st.Pool.ManualServerID == id {
+				st.Pool.ManualServerID = 0
+				st.Pool.ManualSelectedAt = time.Time{}
+				st.Pool.ManualUntil = time.Time{}
+			}
+			for h, sid := range st.Pool.ManualHourlyOverrides {
+				if sid == id {
+					delete(st.Pool.ManualHourlyOverrides, h)
+				}
+			}
 			return nil
 		})
 		if deletedName == "" {
 			deletedName = fmt.Sprintf("#%d", id)
 		}
 		a.store.AddEvent("info", deletedName, "移除服务器", "已从轮换池移出")
-		writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+		writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
 		return
 	}
 
@@ -790,7 +1075,7 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
+	writeJSON(w, http.StatusOK, a.buildStateResponse(time.Now()))
 }
 
 func (a *App) handleRefreshAll(w http.ResponseWriter, r *http.Request) {

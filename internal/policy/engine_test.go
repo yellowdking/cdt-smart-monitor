@@ -188,3 +188,133 @@ func TestExpiredLockCanReLock(t *testing.T) {
 		t.Fatalf("expected expired lock to be replaced by fresh traffic_cutoff lock, got actions: %+v", dec.Actions)
 	}
 }
+
+func TestWeightedDynamicLoadBalancing(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 11, 20, 19, 0, 0, 0, loc)
+	pool := domain.PoolConfig{
+		Enabled:         true,
+		Timezone:        "Asia/Shanghai",
+		ActiveStartHour: 8,
+		ActiveEndHour:   24,
+		PeakStartHour:   18,
+		PeakEndHour:     24,
+		Strategy:        domain.StrategySmartHybrid,
+	}
+
+	// Moderate imbalance (~18% gap): hk1 has ~90% headroom, hk2 has ~72% headroom
+	// Smooth weighted allocation should give hk1 4 peak hours and hk2 2 peak hours (smooth rebalancing, no cliff starvation)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk1", InPool: true, Priority: 10, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 17},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 48},
+	}
+	sched := BuildDailySchedule(pool, servers, now)
+	if len(sched.ServerPlans) != 2 {
+		t.Fatalf("expected 2 server plans, got %d", len(sched.ServerPlans))
+	}
+	if sched.ServerPlans[0].PeakHours <= sched.ServerPlans[1].PeakHours {
+		t.Fatalf("expected healthier hk1 to get more peak hours than hk2, got hk1=%d hk2=%d", sched.ServerPlans[0].PeakHours, sched.ServerPlans[1].PeakHours)
+	}
+	if sched.ServerPlans[1].PeakHours == 0 {
+		t.Fatalf("expected moderate imbalance not to starve hk2 completely, got hk2 peak=%d", sched.ServerPlans[1].PeakHours)
+	}
+	if sched.ServerPlans[0].ScheduledHours+sched.ServerPlans[1].ScheduledHours != 16 {
+		t.Fatalf("expected 16 active hours total, got %d", sched.ServerPlans[0].ScheduledHours+sched.ServerPlans[1].ScheduledHours)
+	}
+	if sched.BalanceScore <= 0 || sched.BalanceScore >= 100 {
+		t.Fatalf("expected realistic balance score between 1 and 99, got %d", sched.BalanceScore)
+	}
+}
+
+func TestManualSelectionAndAutoRevert(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 11, 20, 19, 15, 0, 0, loc)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk1", InPool: true, Priority: 10, Status: domain.StatusRunning, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 10, PrevTrafficGB: 10},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, Status: domain.StatusStopped, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 15, PrevTrafficGB: 15},
+	}
+	pool := domain.PoolConfig{
+		Enabled:                 true,
+		Timezone:                "Asia/Shanghai",
+		ActiveStartHour:         8,
+		ActiveEndHour:           24,
+		PeakStartHour:           18,
+		PeakEndHour:             24,
+		Strategy:                domain.StrategySmartHybrid,
+		StopMode:                domain.StopModeStopCharging,
+		MakeBeforeBreak:         true,
+		CurrentServerID:         1,
+		ManualServerID:          2,
+		ManualSelectedAt:        now,
+		ManualAutoRevertMode:    domain.ManualRevertNextSlot,
+		ManualAutoRevertMinutes: 120,
+	}
+
+	// Verify next_slot computes 21:00 (when balanced 3h peak slot changes from hk1 to hk2)
+	until := ComputeManualUntil(pool, servers, now, domain.ManualRevertNextSlot, 120)
+	if until.In(loc).Hour() != 21 || until.In(loc).Minute() != 0 {
+		t.Fatalf("expected next_slot revert at 21:00, got %v", until.In(loc))
+	}
+	pool.ManualUntil = until
+
+	// 1. While manual pin is active (19:30 < 21:00), hk2 must be targeted even though auto schedule assigns hk1
+	dec1 := EvaluatePool(pool, servers, now.Add(15*time.Minute))
+	if dec1.ScheduleMode != "manual_live" || dec1.TargetServerID != 2 || dec1.ClearManualSelection {
+		t.Fatalf("expected manual_live targeting #2, got %+v", dec1)
+	}
+
+	// 2. Once ManualUntil passes (21:00), ClearManualSelection must fire to auto-revert to smart scheduling
+	dec2 := EvaluatePool(pool, servers, until)
+	if !dec2.ClearManualSelection {
+		t.Fatalf("expected auto-revert ClearManualSelection at ManualUntil, got %+v", dec2)
+	}
+
+	// 3. Safety cutoff ALWAYS overrides manual pin
+	servers[1].UsedTrafficGB = 175
+	servers[1].Status = domain.StatusRunning
+	dec3 := EvaluatePool(pool, servers, now.Add(20*time.Minute))
+	if !dec3.ClearManualSelection || dec3.TargetServerID != 1 {
+		t.Fatalf("expected safety cutoff to override manual pin #2 and fall back to #1, got %+v", dec3)
+	}
+}
+
+func TestHourlyManualScheduleOverridesAndDailyReset(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 11, 20, 19, 10, 0, 0, loc)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk1", InPool: true, Priority: 10, Status: domain.StatusRunning, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 10, PrevTrafficGB: 10},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, Status: domain.StatusStopped, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 10, PrevTrafficGB: 10},
+	}
+	pool := domain.PoolConfig{
+		Enabled:                       true,
+		Timezone:                      "Asia/Shanghai",
+		ActiveStartHour:               8,
+		ActiveEndHour:                 24,
+		PeakStartHour:                 18,
+		PeakEndHour:                   24,
+		Strategy:                      domain.StrategySmartHybrid,
+		StopMode:                      domain.StopModeStopCharging,
+		CurrentServerID:               1,
+		ManualScheduleDate:            "2026-11-20",
+		ManualHourlyOverrides:         map[int]int64{19: 2, 20: domain.ManualSlotForceIdle},
+		ManualOverridesAutoResetDaily: true,
+	}
+
+	// Hour 19 overridden to #2
+	dec19 := EvaluatePool(pool, servers, now)
+	if dec19.ScheduleMode != "manual_slot" || dec19.TargetServerID != 2 {
+		t.Fatalf("expected manual_slot override #2 at 19:00, got %+v", dec19)
+	}
+
+	// Hour 20 overridden to force idle (-1)
+	dec20 := EvaluatePool(pool, servers, time.Date(2026, 11, 20, 20, 10, 0, 0, loc))
+	if dec20.ScheduleMode != "manual_slot" || dec20.Phase != "idle" || dec20.TargetServerID != 0 {
+		t.Fatalf("expected forced idle at 20:00, got %+v", dec20)
+	}
+
+	// Next day (2026-11-21 19:10): daily auto-reset clears yesterday's overrides
+	decNextDay := EvaluatePool(pool, servers, time.Date(2026, 11, 21, 19, 10, 0, 0, loc))
+	if !decNextDay.ResetExpiredOverrides || decNextDay.ScheduleMode != "auto" {
+		t.Fatalf("expected expired hourly overrides to auto-reset next day, got %+v", decNextDay)
+	}
+}

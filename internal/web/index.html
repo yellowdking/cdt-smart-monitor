@@ -317,6 +317,35 @@
     </div>
   </div>
 
+  <!-- Modal 3: Edit Hourly Schedule Slot (triggered by clicking any cell in 24h Gantt) -->
+  <div id="slotModal" class="fixed inset-0 z-40 hidden bg-slate-900/30 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 id="slotModalTitle" class="text-base font-semibold text-slate-900">修改排班时段</h3>
+          <p id="slotModalSub" class="text-xs text-slate-500 mt-0.5">智能推荐：—</p>
+        </div>
+        <button type="button" id="closeSlotModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center text-lg">&times;</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="slotModalHour" />
+        <div class="space-y-1.5">
+          <div class="text-xs font-medium text-slate-600">生效范围</div>
+          <div id="slotScopeBtns" class="flex flex-wrap gap-1.5 text-xs">
+            <button type="button" data-scope="1" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-900 bg-slate-900 text-white font-medium">仅本小时</button>
+            <button type="button" data-scope="2" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">连续 2 小时</button>
+            <button type="button" data-scope="3" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">连续 3 小时</button>
+            <button type="button" data-scope="peak" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">整个高峰时段</button>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <div class="text-xs font-medium text-slate-600">选择该时段的值班方式</div>
+          <div id="slotTargetList" class="grid grid-cols-1 gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main class="max-w-6xl mx-auto px-4 sm:px-6 py-7 space-y-6">
     <!-- TAB 1: SERVERS -->
     <section id="tab-servers" class="tab-panel space-y-6">
@@ -337,6 +366,32 @@
           <div class="text-[11px] text-slate-500 font-medium">累计本月费用</div>
           <div id="kpiCost" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">$0.000</div>
         </div>
+      </div>
+
+      <!-- Mihomo-style Duty Mode Switcher (Auto / Manual + Auto-Revert + One-Click Back to Smart Auto) -->
+      <div class="card-surface rounded-2xl p-4 sm:p-5 space-y-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold text-slate-900">当班调度模式</span>
+            <span id="dutyModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">⚡ 智能排班运行中</span>
+            <span id="balanceScoreBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-slate-200 bg-slate-50 text-slate-600">均衡度 100%</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <label class="inline-flex items-center gap-1.5 text-slate-500">
+              <span>自动切回</span>
+              <select id="quickRevertSelect" class="input-line rounded-lg px-2 py-1 text-xs">
+                <option value="next_slot">下个排班槽位</option>
+                <option value="duration:60">1 小时后</option>
+                <option value="duration:120">2 小时后</option>
+                <option value="duration:240">4 小时后</option>
+                <option value="next_day">次日 00:00</option>
+                <option value="never">保持手动</option>
+              </select>
+            </label>
+            <button type="button" id="returnAutoBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition">⚡ 一键回到智能排班</button>
+          </div>
+        </div>
+        <div id="dutySelectorPills" class="flex flex-wrap items-center gap-2"></div>
       </div>
 
       <div class="space-y-3">
@@ -435,27 +490,54 @@
             </label>
           </div>
         </div>
+
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div>
+            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">05 · 手动接管与自动切回</span>
+            <h2 class="text-base font-semibold text-slate-900 mt-0.5">自动切回智能排班规则</h2>
+            <p class="text-xs text-slate-500 mt-1">类似 Mihomo 的「自动选择 / 手动选择」：手动切换当班机器后，可按规则自动切回智能均衡排班；触及安全线始终自动兜底。</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">手动选机后自动切回策略</span>
+              <select id="pRevertMode" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
+                <option value="next_slot">下一个排班槽位切换时自动切回（推荐）</option>
+                <option value="duration">固定时长后自动切回</option>
+                <option value="next_day">次日 00:00 自动切回</option>
+                <option value="never">保持手动（直到一键切回智能排班）</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-xs font-medium text-slate-600">固定切回时长（分钟，仅固定时长模式）</span>
+              <input id="pRevertMins" type="number" min="15" max="1440" step="15" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            </label>
+          </div>
+          <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+            <input id="pOverridesAutoReset" type="checkbox" class="w-4 h-4 accent-slate-900 rounded" />
+            <span>24 小时排班表的手动修改在 <strong>次日 00:00 自动清空并恢复智能排班</strong></span>
+          </label>
+        </div>
       </div>
 
       <div class="lg:col-span-5">
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 sticky top-28">
-          <h3 class="text-sm font-semibold text-slate-900">内置风控规则</h3>
+          <h3 class="text-sm font-semibold text-slate-900">内置风控与动态均衡引擎</h3>
           <div class="divide-y divide-slate-100 text-xs text-slate-600 leading-relaxed">
             <div class="py-3 first:pt-0">
-              <div class="font-semibold text-slate-900 mb-0.5">内部统一安全垫</div>
-              流量上限自动预留 30GB（200GB → 170GB 停机）；金额上限自动预留 $0.05（$0.50 → $0.45 停机）。
+              <div class="font-semibold text-slate-900 mb-0.5">内部统一安全垫（最高优先级）</div>
+              流量上限自动预留 30GB（200GB → 170GB 停机）；金额上限自动预留 $0.05（$0.50 → $0.45 停机），即使处于手动值班模式也强制触发熔断兜底。
             </div>
             <div class="py-3">
               <div class="font-semibold text-amber-700 mb-0.5">高峰单班突发上限优先</div>
-              高峰时段内，单班突发上限优先级高于全局 30GB 刷新差值规则，保障业务不中断。
+              高峰时段内，单班突发上限优先级高于全局 30GB 刷新差值规则，并自动防抖避免同槽位反复切回。
             </div>
             <div class="py-3">
-              <div class="font-semibold text-slate-900 mb-0.5">刷新差值急停切换</div>
-              非高峰相邻两次刷新流量增幅 &gt; 30GB，或全时段金额增幅 &gt; $0.05，立即停机并切机。
+              <div class="font-semibold text-slate-900 mb-0.5">平滑加权动态负载均衡</div>
+              综合各节点剩余流量/金额比例（H^2.2 渐进权重）与容量规模，使用最大余额法按连续块分配高峰与平峰时段：余量越充裕分配时段越多，按日轮转晚高峰黄金时段，最小化开关机抖动。
             </div>
             <div class="py-3 last:pb-0">
-              <div class="font-semibold text-slate-900 mb-0.5">动态自平衡排班</div>
-              日常按天自动互换高峰槽位；余量差距 ≥ 20% 时自动由余量最充裕节点顶班。
+              <div class="font-semibold text-slate-900 mb-0.5">手动排班 + 一键归位</div>
+              既可像 Mihomo 一样随时点选任意机器即时接管，也可点击 24 小时排班格精确指定某小时节点或强制休眠，并支持自动/一键回到智能排班。
             </div>
           </div>
           <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
@@ -469,16 +551,30 @@
     <!-- TAB 3: TIMELINE & EVENTS -->
     <section id="tab-events" class="tab-panel hidden space-y-5">
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold text-slate-900">今日 24 小时动态排班预览</h2>
-          <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">动态均衡</span>
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-900">今日 24 小时动态排班表</h2>
+            <p class="text-[11px] text-slate-500 mt-0.5">点击任意小时格子即可手动指定值班节点、强制休眠或恢复智能排班。</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">动态均衡</span>
+            <button type="button" id="resetAllScheduleBtn" class="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-800 transition">⚡ 全部恢复智能排班</button>
+          </div>
         </div>
-        <div class="flex flex-wrap gap-4 text-[11px] text-slate-500">
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>非使用时段 · 集体关机</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200"></span>平峰时段 · 稳态值班</span>
-          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-300"></span>高峰时段 · 动态均分</span>
+        <div id="serverLoadStrip" class="flex flex-wrap gap-2 text-[11px]"></div>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+          <div class="flex flex-wrap gap-4">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>休眠停机</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200"></span>平峰均衡</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-300"></span>高峰加权</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-50 border border-indigo-400"></span>手动修改</span>
+          </div>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-600">
+            <input id="ganttAutoResetDaily" type="checkbox" class="w-3.5 h-3.5 accent-slate-900 rounded" />
+            <span>次日 00:00 自动恢复智能排班</span>
+          </label>
         </div>
-        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));"></div>
+        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));"></div>
       </div>
 
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3">
@@ -676,17 +772,43 @@
       return Math.min(tR, cR);
     }
 
+    let selectedSlotScope = '1';
+
+    function parseQuickRevert(val) {
+      if (!val) return { mode: 'next_slot', minutes: 120 };
+      if (val.startsWith('duration:')) {
+        return { mode: 'duration', minutes: Number(val.split(':')[1]) || 120 };
+      }
+      return { mode: val, minutes: 120 };
+    }
+
+    function encodeQuickRevert(mode, mins) {
+      if (mode === 'duration') {
+        const m = [60, 120, 240].includes(mins) ? mins : 120;
+        return 'duration:' + m;
+      }
+      if (['next_slot', 'next_day', 'never'].includes(mode)) return mode;
+      return 'next_slot';
+    }
+
     function renderAll(forceSyncForms) {
       if (!appState) return;
       const p = appState.pool;
       const servers = appState.servers || [];
+      const sched = appState.schedule || null;
       const healthy = servers.filter(s => s.in_pool && !isLockActive(s));
       const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
 
       const badge = document.getElementById('peakSplitBadge');
-      badge.textContent = healthy.length >= 2
-        ? `高峰均分 · ${healthy.length} 台 · ${(peakHrs / healthy.length).toFixed(1)}h/台`
-        : `健康节点 ${healthy.length} 台（最低 2 台轮换）`;
+      if (sched && sched.mode === 'manual_live') {
+        badge.textContent = `✋ 手动值班：${sched.manual_server_name || '已指定'}` + (sched.manual_until ? ` · ${sched.manual_until} 切回` : '');
+      } else if (sched && sched.mode === 'manual_slot') {
+        badge.textContent = `🗓 手动排班时段 · 均衡度 ${sched.balance_score}%`;
+      } else {
+        badge.textContent = healthy.length >= 2
+          ? `⚡ 智能均衡 ${sched ? sched.balance_score + '%' : ''} · ${healthy.length} 台`
+          : `健康节点 ${healthy.length} 台（最低 2 台轮换）`;
+      }
 
       const dutySrv = servers.find(s => s.id === p.current_server_id);
       const totalTraffic = servers.reduce((acc, s) => acc + (s.used_traffic_gb || 0), 0);
@@ -705,6 +827,9 @@
         document.getElementById('pPeakBurst').value = p.peak_max_slice_gb;
         document.getElementById('pMaxTraffic').value = p.default_max_traffic_gb;
         document.getElementById('pMaxCost').value = p.default_max_cost_usd;
+        document.getElementById('pRevertMode').value = p.manual_auto_revert_mode || 'next_slot';
+        document.getElementById('pRevertMins').value = p.manual_auto_revert_minutes || 120;
+        document.getElementById('pOverridesAutoReset').checked = p.manual_overrides_auto_reset_daily !== false;
         selectedStrategy = p.strategy || 'smart_hybrid';
         document.querySelectorAll('.strategy-card').forEach(c => c.classList.toggle('selected', c.dataset.strategy === selectedStrategy));
       }
@@ -721,9 +846,80 @@
         document.getElementById('nWeeklyEnabled').checked = !!n.weekly_report_enabled;
       }
 
+      renderDutyControl(servers, p, sched);
       renderServers(servers, p.current_server_id);
-      renderGantt(servers, p);
+      renderGantt(servers, p, sched);
       renderEvents(appState.events || []);
+    }
+
+    function renderDutyControl(servers, p, sched) {
+      const modeBadge = document.getElementById('dutyModeBadge');
+      const scoreBadge = document.getElementById('balanceScoreBadge');
+      const pillsBox = document.getElementById('dutySelectorPills');
+      const returnBtn = document.getElementById('returnAutoBtn');
+      const quickSel = document.getElementById('quickRevertSelect');
+
+      const mode = (sched && sched.mode) || 'auto';
+      const score = sched ? sched.balance_score : 100;
+      const isManual = mode === 'manual_live' || mode === 'manual_slot';
+
+      if (quickSel) {
+        quickSel.value = encodeQuickRevert(p.manual_auto_revert_mode || 'next_slot', p.manual_auto_revert_minutes || 120);
+      }
+
+      if (mode === 'manual_live') {
+        const rem = sched.manual_until
+          ? `将于 ${sched.manual_until}（约 ${sched.manual_remain_mins}m 后）自动切回`
+          : '持续保持直到一键切回';
+        modeBadge.textContent = `✋ 手动指定：${sched.manual_server_name || '—'} · ${rem}`;
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-indigo-300 bg-indigo-50 text-indigo-800';
+      } else if (mode === 'manual_slot') {
+        modeBadge.textContent = `🗓 ${sched.mode_summary || '手动排班时段'}`;
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-sky-300 bg-sky-50 text-sky-800';
+      } else {
+        modeBadge.textContent = `⚡ ${sched ? sched.mode_summary : '智能排班运行中'}`;
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700';
+      }
+
+      scoreBadge.textContent = `均衡度 ${score}%`;
+      scoreBadge.className = score >= 85
+        ? 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-emerald-200 bg-emerald-50 text-emerald-700'
+        : (score >= 65
+          ? 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-amber-200 bg-amber-50 text-amber-800'
+          : 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-rose-200 bg-rose-50 text-rose-700');
+
+      if (isManual) {
+        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 transition shadow-xs';
+        returnBtn.disabled = false;
+      } else {
+        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 text-slate-400 border border-slate-200 cursor-default';
+        returnBtn.disabled = true;
+      }
+
+      const autoCls = !isManual
+        ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-900';
+
+      const pills = [
+        `<button type="button" data-pick-duty="0" class="px-3 py-1.5 rounded-xl border text-xs font-medium transition ${autoCls}">⚡ 智能自动</button>`
+      ];
+      servers.forEach(s => {
+        const locked = isLockActive(s);
+        const hr = Math.round(serverHeadroom(s) * 100);
+        const isManualSelected = mode === 'manual_live' && sched.manual_server_id === s.id;
+        const isCurrentAuto = !isManual && p.current_server_id === s.id;
+        let cls = 'border-slate-200 bg-white text-slate-700 hover:border-indigo-400 hover:text-indigo-700';
+        if (locked) {
+          cls = 'border-slate-200 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed';
+        } else if (isManualSelected) {
+          cls = 'border-indigo-600 bg-indigo-600 text-white shadow-xs';
+        } else if (isCurrentAuto) {
+          cls = 'border-emerald-300 bg-emerald-50/70 text-emerald-800 hover:border-indigo-400';
+        }
+        const tag = locked ? '已锁' : (isManualSelected ? '手动中' : `${hr}%`);
+        pills.push(`<button type="button" data-pick-duty="${s.id}" ${locked ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border text-xs font-medium transition inline-flex items-center gap-1.5 ${cls}"><span>${esc(s.name)}</span><span class="font-mono-num text-[10px] opacity-80">${tag}</span></button>`);
+      });
+      pillsBox.innerHTML = pills.join('');
     }
 
     function renderServers(servers, currentID) {
@@ -826,53 +1022,168 @@
       document.getElementById('serverModal').classList.remove('hidden');
     }
 
-    function renderGantt(servers, p) {
+    function renderGantt(servers, p, sched) {
       const box = document.getElementById('ganttPreview');
       const modeBadge = document.getElementById('ganttModeBadge');
-      const healthy = servers.filter(s => s.in_pool && !isLockActive(s)).sort((a, b) => (a.priority - b.priority) || (a.id - b.id));
-      const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
-      const sliceHrs = healthy.length > 0 ? Math.max(1, Math.round(peakHrs / healthy.length)) : 1;
-      const dayOffset = healthy.length > 0 ? (new Date().getDate() % healthy.length) : 0;
+      const strip = document.getElementById('serverLoadStrip');
+      const autoResetCb = document.getElementById('ganttAutoResetDaily');
+      const resetAllBtn = document.getElementById('resetAllScheduleBtn');
 
-      let imbalancedBest = null;
-      let maxH = -1, minH = 2;
-      healthy.forEach(s => {
-        const h = serverHeadroom(s);
-        if (h > maxH) { maxH = h; imbalancedBest = s; }
-        if (h < minH) minH = h;
-      });
-      const isImbalanced = healthy.length >= 2 && (maxH - minH) >= 0.20;
+      if (autoResetCb) {
+        autoResetCb.checked = p.manual_overrides_auto_reset_daily !== false;
+      }
+
+      if (!sched || !sched.hours) {
+        box.innerHTML = '<div class="col-span-full text-xs text-slate-400 py-4 text-center">排班加载中...</div>';
+        return;
+      }
+
       if (modeBadge) {
-        modeBadge.textContent = isImbalanced
-          ? `余量纠偏中（差 ${((maxH - minH) * 100).toFixed(0)}%）：高峰优先 ${imbalancedBest.name}`
-          : (healthy.length >= 2 ? `按日动态互换高峰槽位（偏移 +${dayOffset}）` : '单机模式');
+        const ovTxt = sched.active_override_count > 0 ? ` · ${sched.active_override_count} 处手动修改` : '';
+        modeBadge.textContent = `均衡度 ${sched.balance_score}% · ${sched.balance_status}${ovTxt}`;
+      }
+      if (resetAllBtn) {
+        const hasManual = sched.active_override_count > 0 || sched.mode !== 'auto';
+        resetAllBtn.classList.toggle('opacity-50', !hasManual);
       }
 
-      const cells = [];
-      for (let h = 0; h < 24; h++) {
-        const active = inRange(h, p.active_start_hour, p.active_end_hour);
-        const peak = active && inRange(h, p.peak_start_hour, p.peak_end_hour);
-        let cls = 'bg-slate-50 text-slate-400 border-slate-200', lbl = '休眠';
-        if (active && healthy.length === 0) {
-          cls = 'bg-rose-50 text-rose-700 border-rose-200'; lbl = '无可用';
-        } else if (peak) {
-          let srv = imbalancedBest;
-          if (!isImbalanced) {
-            let hrsSince = h - p.peak_start_hour;
-            if (hrsSince < 0) hrsSince += 24;
-            const slotIdx = (Math.floor(hrsSince / sliceHrs) + dayOffset) % healthy.length;
-            srv = healthy[slotIdx];
-          }
-          cls = 'bg-amber-50 text-amber-900 border-amber-300';
-          lbl = srv.name.slice(0, 6);
-        } else if (active) {
-          const srv = isImbalanced ? imbalancedBest : healthy[(Math.floor(h / 6) + dayOffset) % healthy.length];
-          cls = 'bg-blue-50 text-blue-900 border-blue-200';
-          lbl = srv.name.slice(0, 6);
+      if (strip) {
+        const plans = sched.server_plans || [];
+        if (plans.length === 0) {
+          strip.innerHTML = '';
+        } else {
+          strip.innerHTML = plans.map(pl => {
+            const cls = pl.eligible
+              ? 'border-slate-200 bg-slate-50 text-slate-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700';
+            return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono-num ${cls}">
+              <strong class="font-sans text-slate-900">${esc(pl.name)}</strong>
+              <span>余量 ${pl.headroom_pct}%</span>
+              <span class="opacity-40">·</span>
+              <span>权重 ${pl.weight_pct}%</span>
+              <span class="opacity-40">·</span>
+              <span>今日 ${pl.scheduled_hours}h (高峰 ${pl.peak_hours}h)</span>
+            </span>`;
+          }).join('');
         }
-        cells.push(`<div class="flex flex-col items-center py-2 px-1 rounded-lg border ${cls}"><span class="font-mono-num text-[10px] opacity-70">${String(h).padStart(2,'0')}</span><span class="text-[11px] font-medium mt-1 truncate max-w-full">${esc(lbl)}</span></div>`);
       }
+
+      const cells = sched.hours.map(slot => {
+        let cls = 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-400';
+        let lbl = '休眠';
+        if (slot.phase === 'exhausted') {
+          cls = 'bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-400';
+          lbl = '无可用';
+        } else if (slot.source === 'manual_slot' || slot.source === 'manual_live') {
+          cls = 'bg-indigo-50 text-indigo-900 border-indigo-400 hover:border-indigo-600';
+          lbl = slot.server_id > 0 ? slot.server_name.slice(0, 6) : '休眠';
+        } else if (slot.phase === 'peak') {
+          cls = 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-500';
+          lbl = (slot.server_name || '—').slice(0, 6);
+        } else if (slot.phase === 'normal') {
+          cls = 'bg-blue-50 text-blue-900 border-blue-200 hover:border-blue-400';
+          lbl = (slot.server_name || '—').slice(0, 6);
+        }
+        const curRing = slot.is_current_hour ? ' ring-2 ring-slate-900 ring-offset-1' : '';
+        const manualDot = (slot.source === 'manual_slot' || slot.source === 'manual_live')
+          ? '<span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-600" title="已手动修改"></span>'
+          : '';
+        const tip = `${String(slot.hour).padStart(2,'0')}:00 · ${slot.server_name || '休眠'}（${slot.source === 'auto' ? '智能排班' : '手动修改'}）— 点击修改`;
+        return `<button type="button" data-edit-hour="${slot.hour}" title="${esc(tip)}" class="relative flex flex-col items-center py-2 px-1 rounded-lg border transition cursor-pointer ${cls}${curRing}">
+          ${manualDot}
+          <span class="font-mono-num text-[10px] opacity-70">${String(slot.hour).padStart(2,'0')}</span>
+          <span class="text-[11px] font-medium mt-1 truncate max-w-full">${esc(lbl)}</span>
+        </button>`;
+      });
       box.innerHTML = cells.join('');
+    }
+
+    function openSlotModal(hour) {
+      if (!appState || !appState.schedule) return;
+      const slot = appState.schedule.hours[hour];
+      if (!slot) return;
+      document.getElementById('slotModalHour').value = hour;
+      document.getElementById('slotModalTitle').textContent = `修改 ${String(hour).padStart(2,'0')}:00 排班`;
+      const autoDesc = slot.auto_server_id > 0 ? slot.auto_server_name : '休眠停机';
+      document.getElementById('slotModalSub').textContent = `智能动态排班推荐：${autoDesc}`;
+      selectedSlotScope = '1';
+      document.querySelectorAll('.slot-scope-btn').forEach(b => {
+        const active = b.dataset.scope === '1';
+        b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs transition ' +
+          (active ? 'border-slate-900 bg-slate-900 text-white font-medium' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+      });
+
+      const list = document.getElementById('slotTargetList');
+      const items = [
+        `<button type="button" data-slot-target="0" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === 0 ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-xs transition">
+          <span class="font-medium text-slate-900">⚡ 跟随智能排班（推荐：${esc(autoDesc)}）</span>
+          <span class="text-[11px] text-slate-400">自动</span>
+        </button>`,
+        `<button type="button" data-slot-target="-1" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === -1 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-xs transition">
+          <span class="font-medium text-slate-800">🌙 强制休眠停机（StopCharging）</span>
+          <span class="text-[11px] text-slate-400">手动</span>
+        </button>`
+      ];
+      (appState.servers || []).forEach(s => {
+        const locked = isLockActive(s);
+        const hr = Math.round(serverHeadroom(s) * 100);
+        const active = slot.manual_override === s.id;
+        items.push(`<button type="button" data-slot-target="${s.id}" ${locked ? 'disabled' : ''} class="w-full text-left px-3.5 py-2.5 rounded-xl border ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400 bg-white'} flex items-center justify-between text-xs transition ${locked ? 'opacity-50 cursor-not-allowed' : ''}">
+          <span class="font-medium text-slate-900">🖥 指定节点：${esc(s.name)}</span>
+          <span class="font-mono-num text-[11px] ${locked ? 'text-rose-600' : 'text-slate-500'}">${locked ? '已熔断锁定' : '余量 ' + hr + '%'}</span>
+        </button>`);
+      });
+      list.innerHTML = items.join('');
+      document.getElementById('slotModal').classList.remove('hidden');
+    }
+
+    async function applyManualDuty(serverID) {
+      const quickSel = document.getElementById('quickRevertSelect');
+      const rev = parseQuickRevert(quickSel ? quickSel.value : 'next_slot');
+      try {
+        appState = await api('/api/v1/pool/manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            server_id: Number(serverID),
+            revert_mode: rev.mode,
+            revert_minutes: rev.minutes
+          })
+        });
+        renderAll(false);
+        toast(Number(serverID) === 0 ? '已一键切回智能动态排班' : '已手动切换当班节点');
+      } catch (e) {
+        toast('切换失败: ' + e.message, true);
+      }
+    }
+
+    async function applySlotOverride(targetID) {
+      const startH = Number(document.getElementById('slotModalHour').value);
+      const p = (appState && appState.pool) || {};
+      let hours = [startH];
+      if (selectedSlotScope === '2') {
+        hours = [startH, (startH + 1) % 24];
+      } else if (selectedSlotScope === '3') {
+        hours = [startH, (startH + 1) % 24, (startH + 2) % 24];
+      } else if (selectedSlotScope === 'peak') {
+        hours = [];
+        for (let h = 0; h < 24; h++) {
+          if (inRange(h, p.peak_start_hour, p.peak_end_hour)) hours.push(h);
+        }
+        if (hours.length === 0) hours = [startH];
+      }
+      try {
+        appState = await api('/api/v1/pool/schedule', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hours, server_id: Number(targetID) })
+        });
+        document.getElementById('slotModal').classList.add('hidden');
+        renderAll(false);
+        toast(Number(targetID) === 0 ? '已恢复该时段为智能排班' : `已手动修改 ${hours.length} 个排班时段`);
+      } catch (e) {
+        toast('修改排班失败: ' + e.message, true);
+      }
     }
 
     function renderEvents(events) {
@@ -922,7 +1233,10 @@
         default_max_cost_usd: Number(document.getElementById('pMaxCost').value) || 0.50,
         stop_mode: prev.stop_mode || 'StopCharging',
         make_before_break: prev.make_before_break !== undefined ? prev.make_before_break : true,
-        poll_interval_minutes: prev.poll_interval_minutes || 5
+        poll_interval_minutes: prev.poll_interval_minutes || 5,
+        manual_auto_revert_mode: document.getElementById('pRevertMode').value || 'next_slot',
+        manual_auto_revert_minutes: Number(document.getElementById('pRevertMins').value) || 120,
+        manual_overrides_auto_reset_daily: document.getElementById('pOverridesAutoReset').checked
       };
       try {
         appState = await api('/api/v1/pool' + (syncLimits ? '?sync_limits=1' : ''), {
@@ -968,6 +1282,92 @@
         if (e.key === 'Escape') {
           document.getElementById('addModal').classList.add('hidden');
           document.getElementById('serverModal').classList.add('hidden');
+          document.getElementById('slotModal').classList.add('hidden');
+        }
+      });
+
+      // Mihomo-style duty selector & one-click return to smart auto-scheduling
+      document.getElementById('dutySelectorPills').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-pick-duty]');
+        if (!btn || btn.disabled) return;
+        applyManualDuty(Number(btn.dataset.pickDuty));
+      });
+      document.getElementById('returnAutoBtn').addEventListener('click', () => applyManualDuty(0));
+      document.getElementById('quickRevertSelect').addEventListener('change', async e => {
+        if (!appState || !appState.pool) return;
+        const rev = parseQuickRevert(e.target.value);
+        // If already in manual_live mode, recalculate ManualUntil immediately; otherwise persist default preference
+        const curManualID = (appState.schedule && appState.schedule.mode === 'manual_live') ? appState.schedule.manual_server_id : 0;
+        if (curManualID > 0) {
+          applyManualDuty(curManualID);
+        } else {
+          const prev = appState.pool;
+          try {
+            appState = await api('/api/v1/pool', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...prev,
+                manual_auto_revert_mode: rev.mode,
+                manual_auto_revert_minutes: rev.minutes
+              })
+            });
+            renderAll(true);
+            toast('已更新自动切回策略');
+          } catch (err) {
+            toast('更新失败: ' + err.message, true);
+          }
+        }
+      });
+
+      // Interactive 24h Gantt click-to-edit & reset controls
+      const slotModal = document.getElementById('slotModal');
+      document.getElementById('closeSlotModal').addEventListener('click', () => slotModal.classList.add('hidden'));
+      slotModal.addEventListener('click', e => { if (e.target === slotModal) slotModal.classList.add('hidden'); });
+      document.getElementById('ganttPreview').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-edit-hour]');
+        if (!btn) return;
+        openSlotModal(Number(btn.dataset.editHour));
+      });
+      document.getElementById('slotScopeBtns').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-scope]');
+        if (!btn) return;
+        selectedSlotScope = btn.dataset.scope;
+        document.querySelectorAll('.slot-scope-btn').forEach(b => {
+          const active = b.dataset.scope === selectedSlotScope;
+          b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs transition ' +
+            (active ? 'border-slate-900 bg-slate-900 text-white font-medium' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+        });
+      });
+      document.getElementById('slotTargetList').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-slot-target]');
+        if (!btn || btn.disabled) return;
+        applySlotOverride(Number(btn.dataset.slotTarget));
+      });
+      document.getElementById('resetAllScheduleBtn').addEventListener('click', async () => {
+        try {
+          appState = await api('/api/v1/pool/schedule', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reset_all: true })
+          });
+          renderAll(false);
+          toast('已全部恢复为智能动态排班');
+        } catch (err) {
+          toast('恢复失败: ' + err.message, true);
+        }
+      });
+      document.getElementById('ganttAutoResetDaily').addEventListener('change', async e => {
+        try {
+          appState = await api('/api/v1/pool/schedule', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_reset_daily: e.target.checked })
+          });
+          renderAll(true);
+          toast(e.target.checked ? '已开启次日 00:00 自动恢复智能排班' : '手动排班将跨日持续保留');
+        } catch (err) {
+          toast('更新失败: ' + err.message, true);
         }
       });
 
