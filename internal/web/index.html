@@ -583,6 +583,31 @@
   <script>
     let appState = null;
     let selectedStrategy = 'smart_hybrid';
+    let formsDirty = { strategy: false, notify: false };
+
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function applyBuffer(limit, buf) {
+      if (!limit || limit <= 0) return 0;
+      return limit <= buf ? limit * 0.9 : limit - buf;
+    }
+
+    function currencySym(site) {
+      return site === 'china' ? '¥' : '$';
+    }
+
+    function isLockActive(s) {
+      if (!s || !s.locked_until) return false;
+      const t = Date.parse(s.locked_until);
+      return Number.isFinite(t) && t > Date.now();
+    }
 
     function toast(msg, isErr) {
       const el = document.getElementById('toast');
@@ -623,32 +648,39 @@
     async function api(url, opts) {
       const res = await fetch(url, opts);
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && !url.startsWith('/api/v1/auth/')) {
+        authStatus.authenticated = false;
+        const gate = document.getElementById('authGate');
+        if (gate) gate.classList.remove('hidden');
+      }
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
       return data;
     }
 
-    async function loadState() {
+    async function loadState(forceSyncForms) {
       try {
         appState = await api('/api/v1/state');
-        renderAll();
+        renderAll(!!forceSyncForms);
       } catch (e) {
-        toast('加载状态失败: ' + e.message, true);
+        if (authStatus && authStatus.authenticated) {
+          toast('加载状态失败: ' + e.message, true);
+        }
       }
     }
 
     function serverHeadroom(s) {
-      const effT = Math.max(1, s.max_traffic_gb - 30);
-      const effC = Math.max(0.05, s.max_cost_usd - 0.05);
-      const tR = Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT));
-      const cR = Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC));
+      const effT = applyBuffer(s.max_traffic_gb, 30);
+      const effC = applyBuffer(s.max_cost_usd, 0.05);
+      const tR = effT > 0 ? Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT)) : 1;
+      const cR = effC > 0 ? Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC)) : 1;
       return Math.min(tR, cR);
     }
 
-    function renderAll() {
+    function renderAll(forceSyncForms) {
       if (!appState) return;
       const p = appState.pool;
       const servers = appState.servers || [];
-      const healthy = servers.filter(s => s.in_pool && !s.locked_until);
+      const healthy = servers.filter(s => s.in_pool && !isLockActive(s));
       const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
 
       const badge = document.getElementById('peakSplitBadge');
@@ -664,26 +696,30 @@
       document.getElementById('kpiTraffic').textContent = `${totalTraffic.toFixed(1)} GB`;
       document.getElementById('kpiCost').textContent = `$${totalCost.toFixed(3)}`;
 
-      document.getElementById('pEnabled').checked = !!p.enabled;
-      document.getElementById('pActiveStart').value = p.active_start_hour;
-      document.getElementById('pActiveEnd').value = p.active_end_hour;
-      document.getElementById('pPeakStart').value = p.peak_start_hour;
-      document.getElementById('pPeakEnd').value = p.peak_end_hour;
-      document.getElementById('pPeakBurst').value = p.peak_max_slice_gb;
-      document.getElementById('pMaxTraffic').value = p.default_max_traffic_gb;
-      document.getElementById('pMaxCost').value = p.default_max_cost_usd;
-      selectedStrategy = p.strategy || 'smart_hybrid';
-      document.querySelectorAll('.strategy-card').forEach(c => c.classList.toggle('selected', c.dataset.strategy === selectedStrategy));
+      if (forceSyncForms || !formsDirty.strategy) {
+        document.getElementById('pEnabled').checked = !!p.enabled;
+        document.getElementById('pActiveStart').value = p.active_start_hour;
+        document.getElementById('pActiveEnd').value = p.active_end_hour;
+        document.getElementById('pPeakStart').value = p.peak_start_hour;
+        document.getElementById('pPeakEnd').value = p.peak_end_hour;
+        document.getElementById('pPeakBurst').value = p.peak_max_slice_gb;
+        document.getElementById('pMaxTraffic').value = p.default_max_traffic_gb;
+        document.getElementById('pMaxCost').value = p.default_max_cost_usd;
+        selectedStrategy = p.strategy || 'smart_hybrid';
+        document.querySelectorAll('.strategy-card').forEach(c => c.classList.toggle('selected', c.dataset.strategy === selectedStrategy));
+      }
 
-      const n = appState.notify || {};
-      document.getElementById('nProxyURL').value = n.proxy_url || '';
-      document.getElementById('nTgApiBase').value = n.telegram_api_base || '';
-      document.getElementById('nTgEnabled').checked = !!n.telegram_enabled;
-      document.getElementById('nTgToken').value = n.telegram_bot_token || '';
-      document.getElementById('nTgChat').value = n.telegram_chat_id || '';
-      document.getElementById('nWhEnabled').checked = !!n.webhook_enabled;
-      document.getElementById('nWhURL').value = n.webhook_url || '';
-      document.getElementById('nWeeklyEnabled').checked = !!n.weekly_report_enabled;
+      if (forceSyncForms || !formsDirty.notify) {
+        const n = appState.notify || {};
+        document.getElementById('nProxyURL').value = n.proxy_url || '';
+        document.getElementById('nTgApiBase').value = n.telegram_api_base || '';
+        document.getElementById('nTgEnabled').checked = !!n.telegram_enabled;
+        document.getElementById('nTgToken').value = n.telegram_bot_token || '';
+        document.getElementById('nTgChat').value = n.telegram_chat_id || '';
+        document.getElementById('nWhEnabled').checked = !!n.webhook_enabled;
+        document.getElementById('nWhURL').value = n.webhook_url || '';
+        document.getElementById('nWeeklyEnabled').checked = !!n.weekly_report_enabled;
+      }
 
       renderServers(servers, p.current_server_id);
       renderGantt(servers, p);
@@ -697,13 +733,15 @@
         return;
       }
       grid.innerHTML = servers.map(s => {
-        const effT = Math.max(1, s.max_traffic_gb - 30);
-        const effC = Math.max(0.05, s.max_cost_usd - 0.05);
+        const effT = applyBuffer(s.max_traffic_gb, 30);
+        const effC = applyBuffer(s.max_cost_usd, 0.05);
         const tPct = Math.min(100, (s.used_traffic_gb / Math.max(1, s.max_traffic_gb)) * 100);
         const cPct = Math.min(100, (s.billed_cost_usd / Math.max(0.01, s.max_cost_usd)) * 100);
         const headroomPct = Math.round(serverHeadroom(s) * 100);
         const isDuty = s.id === currentID;
         const isRun = s.status === 'Running';
+        const locked = isLockActive(s);
+        const sym = currencySym(s.site);
         const dotCls = isRun ? 'bg-emerald-500 live-dot' : 'bg-slate-300';
         const stText = isRun ? 'text-emerald-700' : 'text-slate-500';
 
@@ -712,16 +750,16 @@
             <div class="space-y-3.5">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
-                  <span class="font-semibold text-base text-slate-900 truncate">${s.name}</span>
+                  <span class="font-semibold text-base text-slate-900 truncate">${esc(s.name)}</span>
                   ${isDuty ? '<span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white tracking-wide">当班中</span>' : ''}
                 </div>
                 <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium ${stText}">
-                  <span class="w-2 h-2 rounded-full ${dotCls}"></span>${s.status || 'Unknown'}
+                  <span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(s.status || 'Unknown')}
                 </span>
               </div>
 
-              ${s.locked_until ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">本月已熔断锁定（${s.lock_reason}）</div>` : ''}
-              ${s.last_error ? `<div class="text-[11px] px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 truncate" title="${s.last_error}">同步提示：${s.last_error}</div>` : ''}
+              ${locked ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">本月已熔断锁定（${esc(s.lock_reason)}）</div>` : ''}
+              ${s.last_error ? `<div class="text-[11px] px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 truncate" title="${esc(s.last_error)}">同步提示：${esc(s.last_error)}</div>` : ''}
 
               <div class="space-y-3 pt-1">
                 <div>
@@ -730,16 +768,16 @@
                     <span class="font-mono-num font-medium text-slate-900">${s.used_traffic_gb.toFixed(2)} <span class="text-slate-400 font-normal">/ ${s.max_traffic_gb} GB</span></span>
                   </div>
                   <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div class="h-full rounded-full ${s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
+                    <div class="h-full rounded-full ${effT > 0 && s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
                   </div>
                 </div>
                 <div>
                   <div class="flex justify-between text-xs mb-1.5">
                     <span class="text-slate-500">本月费用</span>
-                    <span class="font-mono-num font-medium text-slate-900">$${s.billed_cost_usd.toFixed(3)} <span class="text-slate-400 font-normal">/ $${s.max_cost_usd.toFixed(2)}</span></span>
+                    <span class="font-mono-num font-medium text-slate-900">${sym}${s.billed_cost_usd.toFixed(3)} <span class="text-slate-400 font-normal">/ ${sym}${s.max_cost_usd.toFixed(2)}</span></span>
                   </div>
                   <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div class="h-full rounded-full ${s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
+                    <div class="h-full rounded-full ${effC > 0 && s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
                   </div>
                 </div>
               </div>
@@ -747,11 +785,11 @@
 
             <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 text-xs">
               <div class="flex flex-wrap items-center gap-1.5">
-                <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition">开机</button>
-                <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition">停机</button>
-                <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition">刷新</button>
-                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
-                ${s.locked_until ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700">解锁</button>` : ''}
+                <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">开机</button>
+                <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">停机</button>
+                <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">刷新</button>
+                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition disabled:opacity-50 ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
+                ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-50">解锁</button>` : ''}
               </div>
               <span class="font-mono-num text-[11px] text-slate-400" title="综合健康余量">${headroomPct}%</span>
             </div>
@@ -791,7 +829,7 @@
     function renderGantt(servers, p) {
       const box = document.getElementById('ganttPreview');
       const modeBadge = document.getElementById('ganttModeBadge');
-      const healthy = servers.filter(s => s.in_pool && !s.locked_until).sort((a, b) => (a.priority - b.priority) || (a.id - b.id));
+      const healthy = servers.filter(s => s.in_pool && !isLockActive(s)).sort((a, b) => (a.priority - b.priority) || (a.id - b.id));
       const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
       const sliceHrs = healthy.length > 0 ? Math.max(1, Math.round(peakHrs / healthy.length)) : 1;
       const dayOffset = healthy.length > 0 ? (new Date().getDate() % healthy.length) : 0;
@@ -832,7 +870,7 @@
           cls = 'bg-blue-50 text-blue-900 border-blue-200';
           lbl = srv.name.slice(0, 6);
         }
-        cells.push(`<div class="flex flex-col items-center py-2 px-1 rounded-lg border ${cls}"><span class="font-mono-num text-[10px] opacity-70">${String(h).padStart(2,'0')}</span><span class="text-[11px] font-medium mt-1 truncate max-w-full">${lbl}</span></div>`);
+        cells.push(`<div class="flex flex-col items-center py-2 px-1 rounded-lg border ${cls}"><span class="font-mono-num text-[10px] opacity-70">${String(h).padStart(2,'0')}</span><span class="text-[11px] font-medium mt-1 truncate max-w-full">${esc(lbl)}</span></div>`);
       }
       box.innerHTML = cells.join('');
     }
@@ -848,10 +886,10 @@
           ? 'text-rose-700 bg-rose-50 border-rose-200'
           : (ev.level === 'warn' ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-slate-700 bg-slate-50 border-slate-200');
         return `<div class="flex flex-wrap items-center gap-2.5 py-2.5">
-          <span class="font-mono-num text-slate-400">${ev.time}</span>
-          <span class="px-2 py-0.5 rounded-md border font-medium ${badge}">${ev.action}</span>
-          <span class="text-slate-900 font-medium">${ev.server}</span>
-          <span class="text-slate-500">${ev.message}</span>
+          <span class="font-mono-num text-slate-400">${esc(ev.time)}</span>
+          <span class="px-2 py-0.5 rounded-md border font-medium ${badge}">${esc(ev.action)}</span>
+          <span class="text-slate-900 font-medium">${esc(ev.server)}</span>
+          <span class="text-slate-500">${esc(ev.message)}</span>
         </div>`;
       }).join('');
     }
@@ -870,9 +908,10 @@
     }
 
     async function savePool(syncLimits) {
+      const prev = (appState && appState.pool) || {};
       const body = {
         enabled: document.getElementById('pEnabled').checked,
-        timezone: 'Asia/Shanghai',
+        timezone: prev.timezone || 'Asia/Shanghai',
         active_start_hour: Number(document.getElementById('pActiveStart').value),
         active_end_hour: Number(document.getElementById('pActiveEnd').value),
         peak_start_hour: Number(document.getElementById('pPeakStart').value),
@@ -881,9 +920,9 @@
         strategy: selectedStrategy,
         default_max_traffic_gb: Number(document.getElementById('pMaxTraffic').value) || 200,
         default_max_cost_usd: Number(document.getElementById('pMaxCost').value) || 0.50,
-        stop_mode: 'StopCharging',
-        make_before_break: true,
-        poll_interval_minutes: 5
+        stop_mode: prev.stop_mode || 'StopCharging',
+        make_before_break: prev.make_before_break !== undefined ? prev.make_before_break : true,
+        poll_interval_minutes: prev.poll_interval_minutes || 5
       };
       try {
         appState = await api('/api/v1/pool' + (syncLimits ? '?sync_limits=1' : ''), {
@@ -891,7 +930,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        renderAll();
+        formsDirty.strategy = false;
+        renderAll(true);
         toast(syncLimits ? '策略已保存并同步到全池' : '智能轮换策略已保存');
       } catch (e) {
         toast('保存失败: ' + e.message, true);
@@ -914,8 +954,21 @@
       document.querySelectorAll('.strategy-card').forEach(c => {
         c.addEventListener('click', () => {
           selectedStrategy = c.dataset.strategy;
+          formsDirty.strategy = true;
           document.querySelectorAll('.strategy-card').forEach(x => x.classList.toggle('selected', x === c));
         });
+      });
+
+      document.getElementById('tab-strategy').addEventListener('input', () => { formsDirty.strategy = true; });
+      document.getElementById('tab-strategy').addEventListener('change', () => { formsDirty.strategy = true; });
+      document.getElementById('tab-notify').addEventListener('input', () => { formsDirty.notify = true; });
+      document.getElementById('tab-notify').addEventListener('change', () => { formsDirty.notify = true; });
+
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          document.getElementById('addModal').classList.add('hidden');
+          document.getElementById('serverModal').classList.add('hidden');
+        }
       });
 
       document.getElementById('savePoolBtn').addEventListener('click', () => savePool(false));
@@ -1016,13 +1069,17 @@
         const btn = e.target.closest('button[data-act]');
         if (btn) {
           e.stopPropagation();
+          if (btn.disabled) return;
           const id = btn.dataset.id, act = btn.dataset.act;
+          btn.disabled = true;
           try {
             appState = await api(`/api/v1/servers/${id}/${act}`, { method: 'POST' });
             renderAll();
             toast('操作已执行');
           } catch (err) {
             toast('操作失败: ' + err.message, true);
+          } finally {
+            btn.disabled = false;
           }
           return;
         }
@@ -1077,7 +1134,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(collectNotifyPayload())
           });
-          renderAll();
+          formsDirty.notify = false;
+          renderAll(true);
           toast('通知与周报配置已保存');
         } catch (err) {
           toast('保存失败: ' + err.message, true);
@@ -1115,8 +1173,8 @@
         }
         box.innerHTML = list.map(pk => `
           <div class="flex items-center justify-between gap-2 py-2.5">
-            <div><span class="text-slate-900 font-medium">${pk.name}</span> <span class="font-mono-num text-slate-400 ml-2">${pk.created_at}</span></div>
-            <button type="button" data-del-pk="${pk.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 transition">删除</button>
+            <div><span class="text-slate-900 font-medium">${esc(pk.name)}</span> <span class="font-mono-num text-slate-400 ml-2">${esc(pk.created_at)}</span></div>
+            <button type="button" data-del-pk="${esc(pk.id)}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 transition">删除</button>
           </div>
         `).join('');
       }
@@ -1135,7 +1193,9 @@
             document.getElementById('passkeyLoginWrap').classList.toggle('hidden', !(isInit && authStatus.has_passkeys && window.PublicKeyCredential));
           } else {
             gate.classList.add('hidden');
-            await loadState();
+            formsDirty.strategy = false;
+            formsDirty.notify = false;
+            await loadState(true);
             renderPasskeys((appState && appState.auth && appState.auth.passkeys) || []);
           }
         } catch (e) {
