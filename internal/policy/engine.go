@@ -30,8 +30,21 @@ type Decision struct {
 	TargetServerID     int64
 	AutoPeakSliceMins  int
 	ResetSliceTracking bool
+	PeakOverrideUntil  time.Time
 	Actions            []Action
 	Summary            string
+}
+
+// IsLockActive reports whether a server currently has an unexpired monthly cutoff lock.
+func IsLockActive(s domain.Server, now time.Time) bool {
+	if s.LockedUntil == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, s.LockedUntil)
+	if err != nil {
+		return false
+	}
+	return now.Before(t)
 }
 
 func ApplyInternalBuffer(limit, buf float64) float64 {
@@ -67,16 +80,14 @@ func EvaluateServer(s domain.Server, now time.Time) ServerEval {
 		CompositeHeadroom:   math.Min(tRatio, cRatio),
 	}
 
-	if s.LockedUntil != "" {
-		if t, err := time.Parse(time.RFC3339, s.LockedUntil); err == nil && now.Before(t) {
-			ev.ShouldCutoff = true
-			ev.CutoffReason = s.LockReason
-			if ev.CutoffReason == "" {
-				ev.CutoffReason = "cost_cutoff"
-			}
-			ev.CompositeHeadroom = 0
-			return ev
+	if IsLockActive(s, now) {
+		ev.ShouldCutoff = true
+		ev.CutoffReason = s.LockReason
+		if ev.CutoffReason == "" {
+			ev.CutoffReason = "cost_cutoff"
 		}
+		ev.CompositeHeadroom = 0
+		return ev
 	}
 
 	if effCost > 0 && s.BilledCostUSD >= effCost {
@@ -151,7 +162,7 @@ func EvaluatePool(pool domain.PoolConfig, servers []domain.Server, now time.Time
 					Reason:   fmt.Sprintf("触发%s：流量 %.1f/%.0fGB，费用 $%.3f/$%.2f", ev.CutoffReason, s.UsedTrafficGB, ev.EffectiveTrafficCap, s.BilledCostUSD, ev.EffectiveCostCap),
 				})
 			}
-			if s.LockedUntil == "" {
+			if !IsLockActive(s, now) {
 				dec.Actions = append(dec.Actions, Action{
 					ServerID: s.ID,
 					Type:     "lock",
@@ -304,10 +315,22 @@ func EvaluatePool(pool domain.PoolConfig, servers []domain.Server, now time.Time
 			needSwitch = true
 			urgentStop = true
 			reason = deltaReason
+			if inPeak && dec.AutoPeakSliceMins > 0 {
+				minsSinceStart := (localNow.Hour()*60 + localNow.Minute()) - pool.PeakStartHour*60
+				if minsSinceStart < 0 {
+					minsSinceStart += 24 * 60
+				}
+				curSlot := minsSinceStart / dec.AutoPeakSliceMins
+				remMins := (curSlot+1)*dec.AutoPeakSliceMins - minsSinceStart
+				if remMins < 5 {
+					remMins = dec.AutoPeakSliceMins
+				}
+				dec.PeakOverrideUntil = now.Add(time.Duration(remMins) * time.Minute)
+			}
 		} else if scheduledPeakServer != nil && current.ID != scheduledPeakServer.ID {
-			// Clock-aligned peak handoff: matches the exact 24h Gantt schedule preview!
-			// Avoid bouncing back if we just switched away from scheduledPeakServer within this slot due to failover/delta.
-			if scheduledPeakServer.KeepAliveFails < domain.MaxKeepAliveFailures {
+			// Clock-aligned peak handoff: matches the exact 24h Gantt schedule preview.
+			// Suppress bounce-back while PeakOverrideUntil is active after a burst-cap/delta handoff.
+			if !now.Before(pool.PeakOverrideUntil) && scheduledPeakServer.KeepAliveFails < domain.MaxKeepAliveFailures {
 				needSwitch = true
 				forcedTarget = scheduledPeakServer
 				reason = peakReasonTag

@@ -3,13 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,17 +26,33 @@ import (
 	"cdt-smart-monitor/internal/web"
 )
 
+const (
+	maxJSONBodyBytes         = 1 << 20 // 1 MiB
+	allExhaustedAlertBackoff = 6 * time.Hour
+	maxConcurrentServerSyncs = 4
+)
+
+var errAlreadyInitialized = errors.New("already initialized")
+
 type App struct {
 	store    *store.Store
 	auth     *auth.Manager
 	ali      *aliyun.Client
 	notifier *notify.Notifier
 	logger   *slog.Logger
+	syncMu   sync.Mutex
 }
 
 func main() {
-	dataDir := envOr("CDT_DATA_DIR", "./data")
+	healthcheck := flag.Bool("healthcheck", false, "run HTTP healthcheck against local server and exit")
+	flag.Parse()
+
 	listen := envOr("CDT_LISTEN", ":8080")
+	if *healthcheck {
+		os.Exit(runHealthcheck(listen))
+	}
+
+	dataDir := envOr("CDT_DATA_DIR", "./data")
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	st, err := store.Open(dataDir)
@@ -45,7 +65,7 @@ func main() {
 		store:    st,
 		auth:     auth.NewManager(),
 		ali:      aliyun.NewClient(),
-		notifier: notify.New(),
+		notifier: notify.NewWithLogger(logger),
 		logger:   logger,
 	}
 
@@ -78,8 +98,11 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              listen,
-		Handler:           mux,
+		Handler:           securityHeadersMiddleware(mux),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -102,11 +125,54 @@ func main() {
 	logger.Info("CDT Smart Monitor stopped gracefully")
 }
 
+func runHealthcheck(listen string) int {
+	_, port, err := net.SplitHostPort(listen)
+	if err != nil || port == "" {
+		port = strings.TrimPrefix(listen, ":")
+	}
+	if port == "" {
+		port = "8080"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
+	if err != nil {
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (a *App) runScheduler(ctx context.Context) {
+	// Run an initial sync shortly after startup so metrics are populated promptly.
+	bootTimer := time.NewTimer(5 * time.Second)
+	defer bootTimer.Stop()
+
+	var lastPoll time.Time
+	select {
+	case <-ctx.Done():
+		return
+	case now := <-bootTimer.C:
+		a.syncAllServers(ctx)
+		lastPoll = now
+		a.evaluateAndExecutePool(ctx, now)
+		a.maybeSendWeeklyReport(ctx, now)
+	}
+
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	var lastPoll time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,9 +195,25 @@ func (a *App) runScheduler(ctx context.Context) {
 
 func (a *App) syncAllServers(ctx context.Context) {
 	snap := a.store.SnapshotRaw()
-	for _, srv := range snap.Servers {
-		_ = a.syncOneServer(ctx, srv.ID)
+	if len(snap.Servers) == 0 {
+		return
 	}
+	sem := make(chan struct{}, maxConcurrentServerSyncs)
+	var wg sync.WaitGroup
+	for _, srv := range snap.Servers {
+		wg.Add(1)
+		go func(id int64) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			_ = a.syncOneServer(ctx, id)
+		}(srv.ID)
+	}
+	wg.Wait()
 }
 
 func (a *App) syncOneServer(ctx context.Context, id int64) error {
@@ -151,7 +233,7 @@ func (a *App) syncOneServer(ctx context.Context, id int64) error {
 	now := time.Now()
 	inst, ecsErr := a.ali.DescribeInstance(ctx, *target)
 	trafficGB, cdtErr := a.ali.GetCDTTrafficGB(ctx, *target)
-	costUSD, bssErr := a.ali.GetMonthlyBillUSD(ctx, *target, now)
+	costUSD, bssErr := a.ali.GetMonthlyBillUSD(ctx, *target, now, snap.Pool.Timezone)
 
 	var errs []string
 	if ecsErr != nil {
@@ -167,6 +249,10 @@ func (a *App) syncOneServer(ctx context.Context, id int64) error {
 	return a.store.Update(func(st *domain.AppState) error {
 		for i := range st.Servers {
 			if st.Servers[i].ID == id {
+				if st.Servers[i].LockedUntil != "" && !policy.IsLockActive(st.Servers[i], now) {
+					st.Servers[i].LockedUntil = ""
+					st.Servers[i].LockReason = ""
+				}
 				if ecsErr == nil {
 					st.Servers[i].Status = inst.Status
 					st.Servers[i].PublicIP = inst.PublicIP
@@ -199,13 +285,50 @@ func (a *App) syncOneServer(ctx context.Context, id int64) error {
 	})
 }
 
+func (a *App) clearExpiredLocks(now time.Time) {
+	var unlocked []string
+	_ = a.store.Update(func(st *domain.AppState) error {
+		changed := false
+		for i := range st.Servers {
+			if st.Servers[i].LockedUntil != "" && !policy.IsLockActive(st.Servers[i], now) {
+				st.Servers[i].LockedUntil = ""
+				st.Servers[i].LockReason = ""
+				st.Servers[i].KeepAliveFails = 0
+				unlocked = append(unlocked, st.Servers[i].Name)
+				changed = true
+			}
+		}
+		if !changed {
+			return errNoopUpdate
+		}
+		return nil
+	})
+	for _, name := range unlocked {
+		a.store.AddEvent("info", name, "新账期自动解锁", "熔断锁定已到期，已重新恢复入池参与轮换")
+	}
+}
+
+var errNoopUpdate = errors.New("noop")
+
 func (a *App) evaluateAndExecutePool(ctx context.Context, now time.Time) {
+	a.syncMu.Lock()
+	defer a.syncMu.Unlock()
+
+	a.clearExpiredLocks(now)
+
 	snap := a.store.SnapshotRaw()
 	dec := policy.EvaluatePool(snap.Pool, snap.Servers, now)
 
 	serverMap := make(map[int64]domain.Server, len(snap.Servers))
 	for _, s := range snap.Servers {
 		serverMap[s.ID] = s
+	}
+
+	if dec.Phase != "all_exhausted" && !snap.Pool.LastAllExhaustedAlertAt.IsZero() {
+		_ = a.store.Update(func(st *domain.AppState) error {
+			st.Pool.LastAllExhaustedAlertAt = time.Time{}
+			return nil
+		})
 	}
 
 	for _, act := range dec.Actions {
@@ -266,8 +389,14 @@ func (a *App) evaluateAndExecutePool(ctx context.Context, now time.Time) {
 			})
 			a.store.AddEvent("warn", srv.Name, "本月熔断锁定", fmt.Sprintf("原因: %s，解锁时间: %s", act.Reason, until))
 		case "notify":
-			a.store.AddEvent("warn", "轮换池", "全池告警", act.Reason)
-			a.notifier.Send(ctx, snap.Notify, "CDT 智能轮换 · 全池告警", act.Reason)
+			if snap.Pool.LastAllExhaustedAlertAt.IsZero() || now.Sub(snap.Pool.LastAllExhaustedAlertAt) >= allExhaustedAlertBackoff {
+				a.store.AddEvent("warn", "轮换池", "全池告警", act.Reason)
+				a.notifier.Send(ctx, snap.Notify, "CDT 智能轮换 · 全池告警", act.Reason)
+				_ = a.store.Update(func(st *domain.AppState) error {
+					st.Pool.LastAllExhaustedAlertAt = now
+					return nil
+				})
+			}
 		}
 	}
 
@@ -277,6 +406,11 @@ func (a *App) evaluateAndExecutePool(ctx context.Context, now time.Time) {
 			st.Pool.CurrentServerID = dec.TargetServerID
 			st.Pool.CurrentSliceStartedAt = now
 			st.Pool.CurrentSliceStartTrafficGB = srv.UsedTrafficGB
+			if !dec.PeakOverrideUntil.IsZero() {
+				st.Pool.PeakOverrideUntil = dec.PeakOverrideUntil
+			} else if !now.Before(st.Pool.PeakOverrideUntil) {
+				st.Pool.PeakOverrideUntil = time.Time{}
+			}
 			return nil
 		})
 	}
@@ -290,6 +424,7 @@ func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(web.IndexHTML)
 }
 
@@ -307,24 +442,47 @@ func (a *App) handleSavePool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req domain.PoolConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	if req.Timezone == "" {
+		req.Timezone = "Asia/Shanghai"
+	}
+	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效的时区: " + req.Timezone})
+		return
+	}
+	if req.ActiveStartHour < 0 || req.ActiveStartHour > 23 || req.ActiveEndHour < 0 || req.ActiveEndHour > 24 ||
+		req.PeakStartHour < 0 || req.PeakStartHour > 23 || req.PeakEndHour < 0 || req.PeakEndHour > 24 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "时间段小时数范围无效"})
+		return
+	}
+	if req.PeakMaxSliceGB < 0 || req.DefaultMaxTrafficGB <= 0 || req.DefaultMaxCostUSD <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "流量与金额上限必须大于 0"})
+		return
+	}
+	if req.StopMode != domain.StopModeStopCharging && req.StopMode != domain.StopModeKeepCharging {
+		req.StopMode = domain.StopModeStopCharging
+	}
+	if req.PollIntervalMinutes < 1 {
+		req.PollIntervalMinutes = 5
+	} else if req.PollIntervalMinutes > 60 {
+		req.PollIntervalMinutes = 60
+	}
+	switch req.Strategy {
+	case domain.StrategySmartHybrid, domain.StrategyExhaustSequential, domain.StrategyContinuousRoundRobin:
+	default:
+		req.Strategy = domain.StrategySmartHybrid
+	}
+
 	applyAll := r.URL.Query().Get("sync_limits") == "1"
 	err := a.store.Update(func(st *domain.AppState) error {
 		req.CurrentServerID = st.Pool.CurrentServerID
 		req.CurrentSliceStartedAt = st.Pool.CurrentSliceStartedAt
 		req.CurrentSliceStartTrafficGB = st.Pool.CurrentSliceStartTrafficGB
-		if req.Timezone == "" {
-			req.Timezone = "Asia/Shanghai"
-		}
-		if req.StopMode == "" {
-			req.StopMode = domain.StopModeStopCharging
-		}
-		if req.PollIntervalMinutes < 1 {
-			req.PollIntervalMinutes = 5
-		}
+		req.PeakOverrideUntil = st.Pool.PeakOverrideUntil
+		req.LastAllExhaustedAlertAt = st.Pool.LastAllExhaustedAlertAt
 		st.Pool = req
 		if applyAll {
 			for i := range st.Servers {
@@ -348,18 +506,21 @@ func (a *App) handleSaveNotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req domain.NotifyConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	_ = a.store.Update(func(st *domain.AppState) error {
+	if err := a.store.Update(func(st *domain.AppState) error {
 		if req.TelegramBotToken == "********" || req.TelegramBotToken == "" {
 			req.TelegramBotToken = st.Notify.TelegramBotToken
 		}
 		req.LastWeeklyReportDate = st.Notify.LastWeeklyReportDate
 		st.Notify = req
 		return nil
-	})
+	}); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	a.store.AddEvent("info", "系统", "保存通知设置", "已更新通知配置")
 	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
 }
@@ -371,7 +532,7 @@ func (a *App) handleTestNotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req domain.NotifyConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -399,11 +560,16 @@ func (a *App) handleServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req domain.Server
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.InstanceID) == "" || strings.TrimSpace(req.Region) == "" {
+	req.Name = strings.TrimSpace(req.Name)
+	req.Region = strings.TrimSpace(req.Region)
+	req.InstanceID = strings.TrimSpace(req.InstanceID)
+	req.AccessKeyID = strings.TrimSpace(req.AccessKeyID)
+	req.AccessKeySecret = strings.TrimSpace(req.AccessKeySecret)
+	if req.Name == "" || req.InstanceID == "" || req.Region == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "节点名称、地域和实例ID不能为空"})
 		return
 	}
@@ -412,7 +578,7 @@ func (a *App) handleServers(w http.ResponseWriter, r *http.Request) {
 		req.ID = st.NextServerID
 		newID = req.ID
 		st.NextServerID++
-		if req.Site == "" {
+		if req.Site != domain.SiteChina {
 			req.Site = domain.SiteIntl
 		}
 		if req.MaxTrafficGB <= 0 {
@@ -457,7 +623,7 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut && len(parts) == 1 {
 		var req domain.Server
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
@@ -468,7 +634,7 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 					if strings.TrimSpace(req.Name) != "" {
 						st.Servers[i].Name = strings.TrimSpace(req.Name)
 					}
-					if req.Site != "" {
+					if req.Site == domain.SiteIntl || req.Site == domain.SiteChina {
 						st.Servers[i].Site = req.Site
 					}
 					if strings.TrimSpace(req.Region) != "" {
@@ -481,7 +647,7 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 						st.Servers[i].AccessKeyID = strings.TrimSpace(req.AccessKeyID)
 					}
 					if req.AccessKeySecret != "" && req.AccessKeySecret != "********" {
-						st.Servers[i].AccessKeySecret = req.AccessKeySecret
+						st.Servers[i].AccessKeySecret = strings.TrimSpace(req.AccessKeySecret)
 					}
 					if req.MaxTrafficGB > 0 {
 						st.Servers[i].MaxTrafficGB = req.MaxTrafficGB
@@ -509,11 +675,14 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodDelete && len(parts) == 1 {
+		var deletedName string
 		_ = a.store.Update(func(st *domain.AppState) error {
 			out := make([]domain.Server, 0, len(st.Servers))
 			for _, s := range st.Servers {
 				if s.ID != id {
 					out = append(out, s)
+				} else {
+					deletedName = s.Name
 				}
 			}
 			st.Servers = out
@@ -522,7 +691,10 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		})
-		a.store.AddEvent("info", fmt.Sprintf("#%d", id), "移除服务器", "已从轮换池移出")
+		if deletedName == "" {
+			deletedName = fmt.Sprintf("#%d", id)
+		}
+		a.store.AddEvent("info", deletedName, "移除服务器", "已从轮换池移出")
 		writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
 		return
 	}
@@ -556,6 +728,16 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
+		_ = a.store.Update(func(st *domain.AppState) error {
+			for i := range st.Servers {
+				if st.Servers[i].ID == id {
+					st.Servers[i].Status = domain.StatusStarting
+					st.Servers[i].KeepAliveFails = 0
+					st.Servers[i].LastActiveAt = time.Now()
+				}
+			}
+			return nil
+		})
 		a.store.AddEvent("info", srv.Name, "手动开机", "已下发 StartInstance")
 	case "stop":
 		if err := a.ali.StopInstance(ctx, *srv, snap.Pool.StopMode); err != nil {
@@ -563,6 +745,14 @@ func (a *App) handleServerAction(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
+		_ = a.store.Update(func(st *domain.AppState) error {
+			for i := range st.Servers {
+				if st.Servers[i].ID == id {
+					st.Servers[i].Status = domain.StatusStopping
+				}
+			}
+			return nil
+		})
 		a.store.AddEvent("info", srv.Name, "手动节省停机", "已下发 StopInstance ("+snap.Pool.StopMode+")")
 	case "refresh":
 		if err := a.syncOneServer(ctx, id); err != nil {
@@ -618,6 +808,11 @@ func (a *App) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "refreshing"})
 }
 
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	return json.NewDecoder(r.Body).Decode(dst)
+}
+
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
@@ -664,15 +859,10 @@ func (a *App) handleAuthSetup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	snap := a.store.SnapshotRaw()
-	if snap.Auth.PasswordHash != "" {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "管理员密码已初始化，请直接登录"})
-		return
-	}
 	var req struct {
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -682,9 +872,16 @@ func (a *App) handleAuthSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.store.Update(func(st *domain.AppState) error {
+		if st.Auth.PasswordHash != "" {
+			return errAlreadyInitialized
+		}
 		st.Auth.PasswordHash = hash
 		return nil
 	}); err != nil {
+		if errors.Is(err, errAlreadyInitialized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "管理员密码已初始化，请直接登录"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -706,7 +903,7 @@ func (a *App) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -740,7 +937,7 @@ func (a *App) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		OldPassword string `json:"old_password"`
 		NewPassword string `json:"new_password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -754,11 +951,17 @@ func (a *App) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	_ = a.store.Update(func(st *domain.AppState) error {
+	if err := a.store.Update(func(st *domain.AppState) error {
 		st.Auth.PasswordHash = newHash
 		return nil
-	})
-	a.store.AddEvent("info", "安全", "修改密码", "管理员密码已更新")
+	}); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	// Revoke all previous sessions and issue a fresh session for the current browser.
+	a.auth.InvalidateAllSessions()
+	a.auth.CreateSession(w, r)
+	a.store.AddEvent("info", "安全", "修改密码", "管理员密码已更新，其余会话已失效")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -798,7 +1001,7 @@ func (a *App) handlePasskeyRegisterFinish(w http.ResponseWriter, r *http.Request
 		AuthDataB64   string `json:"auth_data_b64"`
 		PublicKeyB64  string `json:"public_key_b64"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -807,10 +1010,13 @@ func (a *App) handlePasskeyRegisterFinish(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	_ = a.store.Update(func(st *domain.AppState) error {
+	if err := a.store.Update(func(st *domain.AppState) error {
 		st.Auth.Passkeys = append(st.Auth.Passkeys, cred)
 		return nil
-	})
+	}); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	a.store.AddEvent("info", "安全", "绑定 Passkey", "已新增通行密钥: "+cred.Name)
 	writeJSON(w, http.StatusOK, a.store.SnapshotMasked())
 }
@@ -823,7 +1029,7 @@ func (a *App) handlePasskeyDelete(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -884,7 +1090,7 @@ func (a *App) handlePasskeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 		AuthDataB64   string `json:"auth_data_b64"`
 		SignatureB64  string `json:"signature_b64"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -926,13 +1132,17 @@ func (a *App) buildWeeklyReport(snap domain.AppState, localNow time.Time) (strin
 	fmt.Fprintf(&b, "总流量: %.2f GB | 总费用: $%.3f | 当前当班: %s\n", totalGB, totalUSD, dutyName)
 	for _, s := range snap.Servers {
 		icon := "⚪"
-		if s.LockedUntil != "" {
+		if policy.IsLockActive(s, localNow) {
 			icon = "🔴"
 		} else if s.Status == domain.StatusRunning {
 			icon = "🟢"
 		}
-		fmt.Fprintf(&b, "%s %s (%s): %.2f/%.0f GB | $%.3f/$%.2f\n",
-			icon, s.Name, s.Status, s.UsedTrafficGB, s.MaxTrafficGB, s.BilledCostUSD, s.MaxCostUSD)
+		sym := "$"
+		if s.Site == domain.SiteChina {
+			sym = "¥"
+		}
+		fmt.Fprintf(&b, "%s %s (%s): %.2f/%.0f GB | %s%.3f/%s%.2f\n",
+			icon, s.Name, s.Status, s.UsedTrafficGB, s.MaxTrafficGB, sym, s.BilledCostUSD, sym, s.MaxCostUSD)
 	}
 	if len(snap.Servers) == 0 {
 		b.WriteString("当前轮换池暂无服务器。")
@@ -973,7 +1183,7 @@ func (a *App) handleTestWeeklyReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req domain.NotifyConfig
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	_ = decodeJSON(w, r, &req)
 	snap := a.store.SnapshotRaw()
 	if req.TelegramBotToken == "********" || req.TelegramBotToken == "" {
 		req.TelegramBotToken = snap.Notify.TelegramBotToken

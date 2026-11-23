@@ -92,13 +92,17 @@ type PoolConfig struct {
 	CurrentServerID            int64     `json:"current_server_id"`
 	CurrentSliceStartedAt      time.Time `json:"current_slice_started_at"`
 	CurrentSliceStartTrafficGB float64   `json:"current_slice_start_traffic_gb"`
+	// PeakOverrideUntil suppresses clock-aligned bounce-back after a burst-cap/delta handoff within the current slot.
+	PeakOverrideUntil time.Time `json:"peak_override_until,omitempty"`
+	// LastAllExhaustedAlertAt throttles repeated all-exhausted notifications.
+	LastAllExhaustedAlertAt time.Time `json:"last_all_exhausted_alert_at,omitempty"`
 }
 
 // NotifyConfig stores optional Telegram / Webhook notification settings.
 type NotifyConfig struct {
-	ProxyURL             string `json:"proxy_url"`               // 可选：http://、https://、socks5:// 代理地址
+	ProxyURL             string `json:"proxy_url"`         // 可选：http://、https://、socks5:// 代理地址
 	TelegramEnabled      bool   `json:"telegram_enabled"`
-	TelegramAPIBase      string `json:"telegram_api_base"`       // 可选：自定义 Telegram 反代地址，留空默认 https://api.telegram.org
+	TelegramAPIBase      string `json:"telegram_api_base"` // 可选：自定义 Telegram 反代地址，留空默认 https://api.telegram.org
 	TelegramBotToken     string `json:"telegram_bot_token,omitempty"`
 	TelegramChatID       string `json:"telegram_chat_id"`
 	WebhookEnabled       bool   `json:"webhook_enabled"`
@@ -147,6 +151,9 @@ func DefaultState() AppState {
 	return AppState{
 		NextServerID: 1,
 		NextEventID:  1,
+		Auth: AuthConfig{
+			Passkeys: []PasskeyCredential{},
+		},
 		Pool: PoolConfig{
 			Enabled:             true,
 			Timezone:            "Asia/Shanghai",

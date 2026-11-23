@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,12 +21,26 @@ import (
 )
 
 type Client struct {
-	httpClient *http.Client
+	httpClient     *http.Client
+	ecsEndpointFn  func(region string) string
+	cdtEndpoint    string
+	bssIntlEndpt   string
+	bssChinaEndpt  string
+	maxAttempts    int
+	retryBaseDelay time.Duration
 }
 
 func NewClient() *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 15 * time.Second},
+		ecsEndpointFn: func(region string) string {
+			return fmt.Sprintf("https://ecs.%s.aliyuncs.com/", region)
+		},
+		cdtEndpoint:    "https://cdt.aliyuncs.com/",
+		bssIntlEndpt:   "https://business.ap-southeast-1.aliyuncs.com/",
+		bssChinaEndpt:  "https://business.aliyuncs.com/",
+		maxAttempts:    3,
+		retryBaseDelay: 300 * time.Millisecond,
 	}
 }
 
@@ -36,12 +51,16 @@ type InstanceSnapshot struct {
 
 // DescribeInstance fetches ECS instance status and primary public IPv4.
 func (c *Client) DescribeInstance(ctx context.Context, s domain.Server) (InstanceSnapshot, error) {
-	endpoint := fmt.Sprintf("https://ecs.%s.aliyuncs.com/", s.Region)
+	endpoint := c.ecsEndpointFn(s.Region)
+	idsJSON, err := json.Marshal([]string{s.InstanceID})
+	if err != nil {
+		return InstanceSnapshot{Status: domain.StatusUnknown}, err
+	}
 	params := map[string]string{
 		"Action":      "DescribeInstances",
 		"Version":     "2014-05-26",
 		"RegionId":    s.Region,
-		"InstanceIds": fmt.Sprintf(`["%s"]`, s.InstanceID),
+		"InstanceIds": string(idsJSON),
 	}
 	body, err := c.doRPC(ctx, endpoint, s.AccessKeyID, s.AccessKeySecret, params)
 	if err != nil {
@@ -76,7 +95,7 @@ func (c *Client) DescribeInstance(ctx context.Context, s domain.Server) (Instanc
 }
 
 func (c *Client) StartInstance(ctx context.Context, s domain.Server) error {
-	endpoint := fmt.Sprintf("https://ecs.%s.aliyuncs.com/", s.Region)
+	endpoint := c.ecsEndpointFn(s.Region)
 	params := map[string]string{
 		"Action":     "StartInstance",
 		"Version":    "2014-05-26",
@@ -91,7 +110,7 @@ func (c *Client) StopInstance(ctx context.Context, s domain.Server, stopMode str
 	if stopMode == "" {
 		stopMode = domain.StopModeStopCharging
 	}
-	endpoint := fmt.Sprintf("https://ecs.%s.aliyuncs.com/", s.Region)
+	endpoint := c.ecsEndpointFn(s.Region)
 	params := map[string]string{
 		"Action":      "StopInstance",
 		"Version":     "2014-05-26",
@@ -103,13 +122,21 @@ func (c *Client) StopInstance(ctx context.Context, s domain.Server, stopMode str
 	return err
 }
 
+// isDomesticRegion distinguishes China Mainland CDT bucket from overseas/HK/MO/TW buckets.
+func isDomesticRegion(region string) bool {
+	if !strings.HasPrefix(region, "cn-") {
+		return false
+	}
+	return region != "cn-hongkong" && region != "cn-macao" && region != "cn-taiwan"
+}
+
 // GetCDTTrafficGB queries current-month Aliyun CDT internet traffic in GB.
 func (c *Client) GetCDTTrafficGB(ctx context.Context, s domain.Server) (float64, error) {
 	params := map[string]string{
 		"Action":  "ListCdtInternetTraffic",
 		"Version": "2021-08-13",
 	}
-	body, err := c.doRPC(ctx, "https://cdt.aliyuncs.com/", s.AccessKeyID, s.AccessKeySecret, params)
+	body, err := c.doRPC(ctx, c.cdtEndpoint, s.AccessKeyID, s.AccessKeySecret, params)
 	if err != nil {
 		return 0, err
 	}
@@ -123,29 +150,40 @@ func (c *Client) GetCDTTrafficGB(ctx context.Context, s domain.Server) (float64,
 		return 0, err
 	}
 
-	// Match domestic vs overseas bucket following CDT-Monitor convention: cn-* except cn-hongkong is domestic.
-	wantDomestic := strings.HasPrefix(s.Region, "cn-") && s.Region != "cn-hongkong"
+	wantDomestic := isDomesticRegion(s.Region)
 	var totalBytes float64
 	for _, d := range resp.TrafficDetails {
-		isDom := strings.HasPrefix(d.BusinessRegionId, "cn-") && d.BusinessRegionId != "cn-hongkong"
-		if isDom == wantDomestic {
+		if isDomesticRegion(d.BusinessRegionId) == wantDomestic {
 			totalBytes += d.Traffic
 		}
 	}
 	return totalBytes / (1024 * 1024 * 1024), nil
 }
 
+// BillingCycleForTime computes YYYY-MM in the configured timezone (default Asia/Shanghai)
+// so month-boundary unlocks at 00:05 local time never query the previous month's UTC bill.
+func BillingCycleForTime(now time.Time, tz string) string {
+	if strings.TrimSpace(tz) == "" {
+		tz = "Asia/Shanghai"
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
+	return now.In(loc).Format("2006-01")
+}
+
 // GetMonthlyBillUSD queries current-month Aliyun BSS bill overview.
 // Uses business.ap-southeast-1.aliyuncs.com for International site and business.aliyuncs.com for China site.
-func (c *Client) GetMonthlyBillUSD(ctx context.Context, s domain.Server, now time.Time) (float64, error) {
-	endpoint := "https://business.ap-southeast-1.aliyuncs.com/"
+func (c *Client) GetMonthlyBillUSD(ctx context.Context, s domain.Server, now time.Time, tz string) (float64, error) {
+	endpoint := c.bssIntlEndpt
 	if s.Site == domain.SiteChina {
-		endpoint = "https://business.aliyuncs.com/"
+		endpoint = c.bssChinaEndpt
 	}
 	params := map[string]string{
 		"Action":       "QueryBillOverview",
 		"Version":      "2017-12-14",
-		"BillingCycle": now.UTC().Format("2006-01"),
+		"BillingCycle": BillingCycleForTime(now, tz),
 	}
 	body, err := c.doRPC(ctx, endpoint, s.AccessKeyID, s.AccessKeySecret, params)
 	if err != nil {
@@ -170,11 +208,48 @@ func (c *Client) GetMonthlyBillUSD(ctx context.Context, s domain.Server, now tim
 	return sum, nil
 }
 
-// doRPC signs and executes a standard Alibaba Cloud RPC v1 (HMAC-SHA1) GET request.
+// doRPC signs and executes a standard Alibaba Cloud RPC v1 (HMAC-SHA1) GET request with transient retry.
 func (c *Client) doRPC(ctx context.Context, endpoint, akID, akSecret string, extra map[string]string) ([]byte, error) {
 	if akID == "" || akSecret == "" {
 		return nil, fmt.Errorf("missing AccessKeyID or AccessKeySecret")
 	}
+
+	attempts := c.maxAttempts
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		raw, status, err := c.doRPCOnce(ctx, endpoint, akID, akSecret, extra)
+		if err == nil {
+			return raw, nil
+		}
+		lastErr = err
+
+		retryable := (status == 0 || status == http.StatusTooManyRequests || status >= 500) &&
+			!errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded)
+		if !retryable || attempt == attempts {
+			return nil, lastErr
+		}
+
+		backoff := c.retryBaseDelay * time.Duration(attempt)
+		if backoff <= 0 {
+			backoff = 200 * time.Millisecond
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return nil, lastErr
+}
+
+func (c *Client) doRPCOnce(ctx context.Context, endpoint, akID, akSecret string, extra map[string]string) ([]byte, int, error) {
 	params := map[string]string{
 		"Format":           "JSON",
 		"AccessKeyId":      akID,
@@ -193,7 +268,7 @@ func (c *Client) doRPC(ctx context.Context, endpoint, akID, akSecret string, ext
 	}
 	sort.Strings(keys)
 
-	var parts []string
+	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
 		parts = append(parts, percentEncode(k)+"="+percentEncode(params[k]))
 	}
@@ -207,22 +282,33 @@ func (c *Client) doRPC(ctx context.Context, endpoint, akID, akSecret string, ext
 	fullURL := endpoint + "?" + canonicalQuery + "&Signature=" + percentEncode(signature)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer res.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(res.Body, 2<<20))
 	if err != nil {
-		return nil, err
+		return nil, res.StatusCode, err
 	}
 	if res.StatusCode >= 400 {
-		return nil, fmt.Errorf("aliyun API HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(raw)))
+		return nil, res.StatusCode, formatAliyunError(res.StatusCode, raw)
 	}
-	return raw, nil
+	return raw, res.StatusCode, nil
+}
+
+func formatAliyunError(status int, raw []byte) error {
+	var apiErr struct {
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+	}
+	if err := json.Unmarshal(raw, &apiErr); err == nil && (apiErr.Code != "" || apiErr.Message != "") {
+		return fmt.Errorf("aliyun API HTTP %d (%s): %s", status, apiErr.Code, apiErr.Message)
+	}
+	return fmt.Errorf("aliyun API HTTP %d: %s", status, strings.TrimSpace(string(raw)))
 }
 
 func percentEncode(s string) string {

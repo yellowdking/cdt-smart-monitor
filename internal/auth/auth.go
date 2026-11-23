@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +30,8 @@ const (
 	maxLoginFailures  = 5
 	rateLimitWindow   = 15 * time.Minute
 	pbkdf2Iterations  = 100000
+	minPBKDF2Iter     = 10000
+	maxPBKDF2Iter     = 2000000
 )
 
 type sessionEntry struct {
@@ -83,12 +87,16 @@ func VerifyPassword(password, encoded string) bool {
 	if len(parts) != 4 || parts[0] != "pbkdf2_sha256" {
 		return false
 	}
-	salt, err1 := base64.RawStdEncoding.DecodeString(parts[2])
-	expected, err2 := base64.RawStdEncoding.DecodeString(parts[3])
-	if err1 != nil || err2 != nil || len(expected) == 0 {
+	iter, err := strconv.Atoi(parts[1])
+	if err != nil || iter < minPBKDF2Iter || iter > maxPBKDF2Iter {
 		return false
 	}
-	dk := pbkdf2SHA256([]byte(password), salt, pbkdf2Iterations, len(expected))
+	salt, err1 := base64.RawStdEncoding.DecodeString(parts[2])
+	expected, err2 := base64.RawStdEncoding.DecodeString(parts[3])
+	if err1 != nil || err2 != nil || len(salt) == 0 || len(expected) == 0 {
+		return false
+	}
+	dk := pbkdf2SHA256([]byte(password), salt, iter, len(expected))
 	return subtle.ConstantTimeCompare(dk, expected) == 1
 }
 
@@ -142,9 +150,17 @@ func (m *Manager) CheckRateLimit(ip string) error {
 func (m *Manager) RecordFailure(ip string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	now := time.Now()
+	if len(m.attempts) > 128 {
+		for k, v := range m.attempts {
+			if now.Sub(v.FirstFail) > rateLimitWindow {
+				delete(m.attempts, k)
+			}
+		}
+	}
 	ent, ok := m.attempts[ip]
-	if !ok || time.Since(ent.FirstFail) > rateLimitWindow {
-		m.attempts[ip] = rateLimitEntry{Failures: 1, FirstFail: time.Now()}
+	if !ok || now.Sub(ent.FirstFail) > rateLimitWindow {
+		m.attempts[ip] = rateLimitEntry{Failures: 1, FirstFail: now}
 		return
 	}
 	ent.Failures++
@@ -157,13 +173,21 @@ func (m *Manager) ClearFailures(ip string) {
 	delete(m.attempts, ip)
 }
 
-func (m *Manager) CreateSession(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) CreateSession(w http.ResponseWriter, r *http.Request) string {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
 	token := hex.EncodeToString(b)
 
+	now := time.Now()
 	m.mu.Lock()
-	m.sessions[token] = sessionEntry{ExpiresAt: time.Now().Add(sessionTTL)}
+	if len(m.sessions) > 64 {
+		for k, v := range m.sessions {
+			if now.After(v.ExpiresAt) {
+				delete(m.sessions, k)
+			}
+		}
+	}
+	m.sessions[token] = sessionEntry{ExpiresAt: now.Add(sessionTTL)}
 	m.mu.Unlock()
 
 	http.SetCookie(w, &http.Cookie{
@@ -175,6 +199,13 @@ func (m *Manager) CreateSession(w http.ResponseWriter, r *http.Request) {
 		Secure:   IsHTTPS(r),
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
+	return token
+}
+
+func (m *Manager) InvalidateAllSessions() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sessions = make(map[string]sessionEntry)
 }
 
 func (m *Manager) DestroySession(w http.ResponseWriter, r *http.Request) {
@@ -188,6 +219,8 @@ func (m *Manager) DestroySession(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   IsHTTPS(r),
 		MaxAge:   -1,
 	})
 }
@@ -254,8 +287,28 @@ type clientData struct {
 	Origin    string `json:"origin"`
 }
 
-// VerifyPasskeyRegistration verifies clientDataJSON, rpIdHash, and parses SPKI ECDSA P-256 public key.
+func VerifyOrigin(origin, rpID string) error {
+	u, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil || u.Hostname() == "" {
+		return fmt.Errorf("无效的 WebAuthn Origin")
+	}
+	host := strings.ToLower(u.Hostname())
+	rp := strings.ToLower(strings.TrimSpace(rpID))
+	isLocal := host == "localhost" || host == "127.0.0.1"
+	if u.Scheme != "https" && !(u.Scheme == "http" && isLocal) {
+		return fmt.Errorf("WebAuthn Origin 必须使用 HTTPS")
+	}
+	if host != rp && !strings.HasSuffix(host, "."+rp) {
+		return fmt.Errorf("WebAuthn Origin 域名与 RP ID 不匹配")
+	}
+	return nil
+}
+
+// VerifyPasskeyRegistration verifies clientDataJSON, origin, rpIdHash, and parses SPKI ECDSA P-256 public key.
 func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDataB64, pubKeySPKIB64 string) (domain.PasskeyCredential, error) {
+	if strings.TrimSpace(credID) == "" {
+		return domain.PasskeyCredential{}, fmt.Errorf("缺少 Passkey 凭据 ID")
+	}
 	cdBytes, err := decodeB64URL(clientDataB64)
 	if err != nil {
 		return domain.PasskeyCredential{}, fmt.Errorf("无效的 clientDataJSON")
@@ -270,6 +323,9 @@ func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDat
 	ent, ok := m.consumeChallenge(cd.Challenge)
 	if !ok {
 		return domain.PasskeyCredential{}, fmt.Errorf("Passkey Challenge 已过期或无效，请重试")
+	}
+	if err := VerifyOrigin(cd.Origin, ent.RPID); err != nil {
+		return domain.PasskeyCredential{}, err
 	}
 
 	authData, err := decodeB64URL(authDataB64)
@@ -336,6 +392,9 @@ func (m *Manager) VerifyPasskeyAssertion(creds []domain.PasskeyCredential, credI
 	ent, ok := m.consumeChallenge(cd.Challenge)
 	if !ok {
 		return "", 0, fmt.Errorf("登录 Challenge 已过期，请重新点击 Passkey 登录")
+	}
+	if err := VerifyOrigin(cd.Origin, ent.RPID); err != nil {
+		return "", 0, err
 	}
 
 	authData, err := decodeB64URL(authDataB64)

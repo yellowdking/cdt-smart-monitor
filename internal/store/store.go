@@ -47,11 +47,17 @@ func Open(dataDir string) (*Store, error) {
 			return nil, fmt.Errorf("parse state.json: %w", err)
 		}
 		for i := range loaded.Servers {
-			if dec, err := s.decrypt(loaded.Servers[i].AccessKeySecret); err == nil {
-				loaded.Servers[i].AccessKeySecret = dec
+			dec, err := s.decrypt(loaded.Servers[i].AccessKeySecret)
+			if err != nil {
+				return nil, fmt.Errorf("decrypt server %q secret (check master.key): %w", loaded.Servers[i].Name, err)
 			}
+			loaded.Servers[i].AccessKeySecret = dec
 		}
-		if dec, err := s.decrypt(loaded.Notify.TelegramBotToken); err == nil {
+		if loaded.Notify.TelegramBotToken != "" {
+			dec, err := s.decrypt(loaded.Notify.TelegramBotToken)
+			if err != nil {
+				return nil, fmt.Errorf("decrypt telegram bot token (check master.key): %w", err)
+			}
 			loaded.Notify.TelegramBotToken = dec
 		}
 		if loaded.NextServerID <= 0 {
@@ -59,6 +65,15 @@ func Open(dataDir string) (*Store, error) {
 		}
 		if loaded.NextEventID <= 0 {
 			loaded.NextEventID = 1
+		}
+		if loaded.Servers == nil {
+			loaded.Servers = []domain.Server{}
+		}
+		if loaded.Events == nil {
+			loaded.Events = []domain.EventLog{}
+		}
+		if loaded.Auth.Passkeys == nil {
+			loaded.Auth.Passkeys = []domain.PasskeyCredential{}
 		}
 		s.state = loaded
 	} else if !os.IsNotExist(err) {
@@ -70,7 +85,7 @@ func Open(dataDir string) (*Store, error) {
 func (s *Store) SnapshotMasked() domain.AppState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	cp := s.cloneStateLocked()
+	cp := cloneState(s.state)
 	for i := range cp.Servers {
 		if cp.Servers[i].AccessKeySecret != "" {
 			cp.Servers[i].AccessKeySecret = "********"
@@ -89,16 +104,22 @@ func (s *Store) SnapshotMasked() domain.AppState {
 func (s *Store) SnapshotRaw() domain.AppState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.cloneStateLocked()
+	return cloneState(s.state)
 }
 
+// Update runs fn against a cloned draft state and commits it atomically only if both fn and disk persistence succeed.
 func (s *Store) Update(fn func(st *domain.AppState) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := fn(&s.state); err != nil {
+	draft := cloneState(s.state)
+	if err := fn(&draft); err != nil {
 		return err
 	}
-	return s.persistLocked()
+	if err := s.persistStateLocked(draft); err != nil {
+		return err
+	}
+	s.state = draft
+	return nil
 }
 
 func (s *Store) AddEvent(level, server, action, msg string) {
@@ -120,16 +141,28 @@ func (s *Store) AddEvent(level, server, action, msg string) {
 	})
 }
 
-func (s *Store) cloneStateLocked() domain.AppState {
-	cp := s.state
-	cp.Servers = append([]domain.Server(nil), s.state.Servers...)
-	cp.Events = append([]domain.EventLog(nil), s.state.Events...)
-	cp.Auth.Passkeys = append([]domain.PasskeyCredential(nil), s.state.Auth.Passkeys...)
+func cloneState(st domain.AppState) domain.AppState {
+	cp := st
+	if st.Servers == nil {
+		cp.Servers = []domain.Server{}
+	} else {
+		cp.Servers = append([]domain.Server(nil), st.Servers...)
+	}
+	if st.Events == nil {
+		cp.Events = []domain.EventLog{}
+	} else {
+		cp.Events = append([]domain.EventLog(nil), st.Events...)
+	}
+	if st.Auth.Passkeys == nil {
+		cp.Auth.Passkeys = []domain.PasskeyCredential{}
+	} else {
+		cp.Auth.Passkeys = append([]domain.PasskeyCredential(nil), st.Auth.Passkeys...)
+	}
 	return cp
 }
 
-func (s *Store) persistLocked() error {
-	toSave := s.cloneStateLocked()
+func (s *Store) persistStateLocked(st domain.AppState) error {
+	toSave := cloneState(st)
 	for i := range toSave.Servers {
 		if toSave.Servers[i].AccessKeySecret != "" {
 			enc, err := s.encrypt(toSave.Servers[i].AccessKeySecret)
@@ -151,22 +184,58 @@ func (s *Store) persistLocked() error {
 	if err != nil {
 		return err
 	}
-	tmp := s.statePath + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0600); err != nil {
+	return writeFileAtomic(s.dataDir, s.statePath, raw, 0600)
+}
+
+func writeFileAtomic(dir, targetPath string, data []byte, perm os.FileMode) error {
+	tmpFile, err := os.CreateTemp(dir, ".state-*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.statePath)
+	tmpPath := tmpFile.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if err := tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 func loadOrCreateKey(path string) ([]byte, error) {
-	if raw, err := os.ReadFile(path); err == nil && len(raw) == 32 {
-		return raw, nil
+	if raw, err := os.ReadFile(path); err == nil {
+		if len(raw) == 32 {
+			return raw, nil
+		}
+		return nil, fmt.Errorf("invalid master.key length: expected 32 bytes, got %d", len(raw))
+	} else if !os.IsNotExist(err) {
+		return nil, err
 	}
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(path, key, 0600); err != nil {
+	if err := writeFileAtomic(filepath.Dir(path), path, key, 0600); err != nil {
 		return nil, err
 	}
 	return key, nil
