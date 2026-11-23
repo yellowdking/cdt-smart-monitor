@@ -114,3 +114,77 @@ func TestDynamicPeakRebalance(t *testing.T) {
 		t.Fatalf("expected hk (#1) to take over due to >20%% headroom gap, got target #%d", dec.TargetServerID)
 	}
 }
+
+func TestPeakBurstCapNoPingPong(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 11, 20, 19, 0, 0, 0, loc) // Even day (20), 1st peak slot -> #1 is scheduled
+	pool := domain.PoolConfig{
+		Enabled:                    true,
+		Timezone:                   "Asia/Shanghai",
+		ActiveStartHour:            8,
+		ActiveEndHour:              24,
+		PeakStartHour:              18,
+		PeakEndHour:                24,
+		PeakMaxSliceGB:             35,
+		Strategy:                   domain.StrategySmartHybrid,
+		StopMode:                   domain.StopModeStopCharging,
+		MakeBeforeBreak:            true,
+		CurrentServerID:            1,
+		CurrentSliceStartedAt:      now.Add(-60 * time.Minute),
+		CurrentSliceStartTrafficGB: 10,
+	}
+	// #1 hits 35GB peak burst cap (10 -> 46GB)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk", InPool: true, Priority: 10, Status: domain.StatusRunning, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 46, PrevTrafficGB: 44},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, Status: domain.StatusStopped, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 40, PrevTrafficGB: 40},
+	}
+	dec1 := EvaluatePool(pool, servers, now)
+	if dec1.TargetServerID != 2 || !dec1.ResetSliceTracking {
+		t.Fatalf("expected burst-cap handoff to #2, got %+v", dec1)
+	}
+	if !dec1.PeakOverrideUntil.After(now) {
+		t.Fatalf("expected PeakOverrideUntil to be set in future, got %v", dec1.PeakOverrideUntil)
+	}
+
+	// 1 minute later: #2 is now duty and running; must NOT bounce back to #1 within same slot
+	pool.CurrentServerID = 2
+	pool.CurrentSliceStartedAt = now
+	pool.CurrentSliceStartTrafficGB = 40
+	pool.PeakOverrideUntil = dec1.PeakOverrideUntil
+	servers[0].Status = domain.StatusStopped
+	servers[1].Status = domain.StatusRunning
+	dec2 := EvaluatePool(pool, servers, now.Add(1*time.Minute))
+	if dec2.TargetServerID != 2 {
+		t.Fatalf("expected #2 to stay on duty without ping-ponging to #1, got %+v", dec2)
+	}
+}
+
+func TestExpiredLockCanReLock(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 12, 5, 12, 0, 0, 0, loc)
+	expired := time.Date(2026, 12, 1, 0, 5, 0, 0, loc).Format(time.RFC3339)
+
+	pool := domain.PoolConfig{
+		Enabled:         true,
+		Timezone:        "Asia/Shanghai",
+		ActiveStartHour: 8,
+		ActiveEndHour:   24,
+		PeakStartHour:   18,
+		PeakEndHour:     24,
+		Strategy:        domain.StrategySmartHybrid,
+	}
+	// Server still has stale expired LockedUntil from previous cycle, and now hits traffic cutoff again
+	servers := []domain.Server{
+		{ID: 1, Name: "hk", InPool: true, Status: domain.StatusRunning, MaxTrafficGB: 200, MaxCostUSD: 0.50, UsedTrafficGB: 175, LockedUntil: expired, LockReason: "cost_cutoff"},
+	}
+	dec := EvaluatePool(pool, servers, now)
+	foundLock := false
+	for _, a := range dec.Actions {
+		if a.Type == "lock" && a.ServerID == 1 && a.Reason == "traffic_cutoff" {
+			foundLock = true
+		}
+	}
+	if !foundLock {
+		t.Fatalf("expected expired lock to be replaced by fresh traffic_cutoff lock, got actions: %+v", dec.Actions)
+	}
+}
