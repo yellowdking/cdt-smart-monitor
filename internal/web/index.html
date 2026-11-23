@@ -524,12 +524,12 @@
           <h3 class="text-sm font-semibold text-slate-900">内置风控与动态均衡引擎</h3>
           <div class="divide-y divide-slate-100 text-xs text-slate-600 leading-relaxed">
             <div class="py-3 first:pt-0">
-              <div class="font-semibold text-slate-900 mb-0.5">内部统一安全垫（最高优先级）</div>
-              流量上限自动预留 30GB（200GB → 170GB 停机）；金额上限自动预留 $0.05（$0.50 → $0.45 停机），即使处于手动值班模式也强制触发熔断兜底。
+              <div class="font-semibold text-slate-900 mb-0.5">内置安全缓冲保护（最高优先级）</div>
+              系统会在设定的流量上限与费用上限前自动预留安全缓冲（以抵御云端统计与出账延迟），到达保护线即自动停机锁定，即使处于手动值班模式也强制兜底生效。
             </div>
             <div class="py-3">
               <div class="font-semibold text-amber-700 mb-0.5">高峰单班突发上限优先</div>
-              高峰时段内，单班突发上限优先级高于全局 30GB 刷新差值规则，并自动防抖避免同槽位反复切回。
+              高峰时段内，单班突发上限优先级高于全局单次刷新增幅限制，并自动防抖避免同槽位反复切回。
             </div>
             <div class="py-3">
               <div class="font-semibold text-slate-900 mb-0.5">平滑加权动态负载均衡</div>
