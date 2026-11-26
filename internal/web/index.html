@@ -241,7 +241,9 @@
           </label>
           <label class="block">
             <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
-            <input id="eRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            <select id="eRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
+              <option value="cn-hongkong" selected>中国香港 (cn-hongkong)</option>
+            </select>
           </label>
           <label class="block">
             <span class="text-xs font-medium text-slate-700">实例 ID</span>
@@ -306,7 +308,9 @@
           </label>
           <label class="block">
             <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
-            <input id="fRegion" required value="cn-hongkong" placeholder="cn-hongkong" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            <select id="fRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
+              <option value="cn-hongkong" selected>中国香港 (cn-hongkong)</option>
+            </select>
           </label>
           <label class="block">
             <span class="text-xs font-medium text-slate-700">实例 ID</span>
@@ -705,6 +709,111 @@
     let selectedStrategy = 'smart_hybrid';
     let formsDirty = { strategy: false, notify: false };
 
+    const DEFAULT_REGION_ID = 'cn-hongkong';
+    const ALIYUN_REGIONS = [
+      {
+        group: '中国香港及亚太',
+        items: [
+          { id: 'cn-hongkong', name: '中国香港' },
+          { id: 'ap-southeast-1', name: '新加坡' },
+          { id: 'ap-northeast-1', name: '日本（东京）' },
+          { id: 'ap-northeast-2', name: '韩国（首尔）' },
+          { id: 'ap-southeast-3', name: '马来西亚（吉隆坡）' },
+          { id: 'ap-southeast-8', name: '马来西亚（柔佛）' },
+          { id: 'ap-southeast-5', name: '印度尼西亚（雅加达）' },
+          { id: 'ap-southeast-6', name: '菲律宾（马尼拉）' },
+          { id: 'ap-southeast-7', name: '泰国（曼谷）' }
+        ]
+      },
+      {
+        group: '欧美及中东',
+        items: [
+          { id: 'us-west-1', name: '美国（硅谷）' },
+          { id: 'us-east-1', name: '美国（弗吉尼亚）' },
+          { id: 'na-south-1', name: '墨西哥' },
+          { id: 'sa-east-1', name: '巴西（圣保罗）' },
+          { id: 'eu-central-1', name: '德国（法兰克福）' },
+          { id: 'eu-west-1', name: '英国（伦敦）' },
+          { id: 'eu-west-2', name: '法国（巴黎）' },
+          { id: 'eu-west-3', name: '荷兰（阿姆斯特丹）' },
+          { id: 'me-east-1', name: '阿联酋（迪拜）' },
+          { id: 'me-central-1', name: '沙特（利雅得）' }
+        ]
+      },
+      {
+        group: '中国内地',
+        items: [
+          { id: 'cn-hangzhou', name: '华东1（杭州）' },
+          { id: 'cn-shanghai', name: '华东2（上海）' },
+          { id: 'cn-qingdao', name: '华北1（青岛）' },
+          { id: 'cn-beijing', name: '华北2（北京）' },
+          { id: 'cn-zhangjiakou', name: '华北3（张家口）' },
+          { id: 'cn-huhehaote', name: '华北5（呼和浩特）' },
+          { id: 'cn-wulanchabu', name: '华北6（乌兰察布）' },
+          { id: 'cn-shenzhen', name: '华南1（深圳）' },
+          { id: 'cn-heyuan', name: '华南2（河源）' },
+          { id: 'cn-guangzhou', name: '华南3（广州）' },
+          { id: 'cn-chengdu', name: '西南1（成都）' },
+          { id: 'cn-zhongwei', name: '西北2（中卫）' },
+          { id: 'cn-wuhan-lr', name: '华中1（武汉-本地地域）' }
+        ]
+      }
+    ];
+
+    const ALIYUN_REGION_MAP = Object.create(null);
+    ALIYUN_REGIONS.forEach(g => {
+      g.items.forEach(item => {
+        ALIYUN_REGION_MAP[item.id] = item.name;
+      });
+    });
+
+    function formatRegionLabel(regionId) {
+      const id = String(regionId || '').trim();
+      if (!id) return '';
+      const name = ALIYUN_REGION_MAP[id];
+      return name ? `${name} (${id})` : id;
+    }
+
+    function fillRegionSelect(sel) {
+      if (!sel) return;
+      sel.innerHTML = '';
+      ALIYUN_REGIONS.forEach(g => {
+        const og = document.createElement('optgroup');
+        og.label = g.group;
+        g.items.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = `${item.name} (${item.id})`;
+          og.appendChild(opt);
+        });
+        sel.appendChild(og);
+      });
+      sel.value = DEFAULT_REGION_ID;
+    }
+
+    function setRegionSelectValue(selectEl, regionId) {
+      if (!selectEl) return;
+      selectEl.querySelectorAll('optgroup[data-custom-region], option[data-custom-region]').forEach(el => el.remove());
+      const val = String(regionId || '').trim();
+      if (!val) {
+        selectEl.value = DEFAULT_REGION_ID;
+        return;
+      }
+      const exists = Array.from(selectEl.options).some(opt => opt.value === val);
+      if (!exists) {
+        const og = document.createElement('optgroup');
+        og.label = '其他 / 历史地域';
+        og.dataset.customRegion = '1';
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `自定义地域 (${val})`;
+        opt.dataset.customRegion = '1';
+        og.appendChild(opt);
+        selectEl.appendChild(og);
+      }
+      selectEl.value = val;
+    }
+
     function esc(v) {
       return String(v == null ? '' : v)
         .replace(/&/g, '&amp;')
@@ -969,12 +1078,15 @@
         const cardBody = `
           <div class="p-5 flex flex-col justify-between gap-4 h-full cursor-pointer" data-open-detail="${s.id}">
             <div class="space-y-3.5">
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="font-semibold text-base text-slate-900 truncate">${esc(s.name)}</span>
-                  ${isDuty ? '<span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white">当班中</span>' : ''}
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="font-semibold text-base text-slate-900 truncate">${esc(s.name)}</span>
+                    ${isDuty ? '<span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white">当班中</span>' : ''}
+                  </div>
+                  ${s.region ? `<div class="text-xs text-slate-600 truncate mt-0.5" title="${esc(formatRegionLabel(s.region))}">${esc(formatRegionLabel(s.region))}</div>` : ''}
                 </div>
-                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium ${stText}">
+                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium mt-1 ${stText}">
                   <span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(s.status || 'Unknown')}
                 </span>
               </div>
@@ -1029,12 +1141,14 @@
       if (!s) return;
       document.getElementById('eId').value = s.id;
       document.getElementById('modalTitle').textContent = `${s.name} · 节点详情与配置`;
-      document.getElementById('modalSyncTime').textContent = s.last_sync_at ? `上次同步 ${s.last_sync_at}` : '尚未同步';
+      const regionInfo = s.region ? formatRegionLabel(s.region) : '';
+      const syncText = s.last_sync_at ? `上次同步 ${s.last_sync_at}` : '尚未同步';
+      document.getElementById('modalSyncTime').textContent = regionInfo ? `${regionInfo} · ${syncText}` : syncText;
       document.getElementById('ePublicIP').textContent = s.public_ip || '—';
       document.getElementById('eInstDisplay').textContent = s.instance_id || '—';
       document.getElementById('eName').value = s.name;
       document.getElementById('eSite').value = s.site || 'intl';
-      document.getElementById('eRegion').value = s.region;
+      setRegionSelectValue(document.getElementById('eRegion'), s.region);
       document.getElementById('eInstanceID').value = s.instance_id;
       document.getElementById('eAkID').value = s.access_key_id;
       document.getElementById('eAkSecret').value = '';
@@ -1287,6 +1401,8 @@
       fillHours(document.getElementById('pActiveEnd'), true);
       fillHours(document.getElementById('pPeakStart'), false);
       fillHours(document.getElementById('pPeakEnd'), true);
+      fillRegionSelect(document.getElementById('fRegion'));
+      fillRegionSelect(document.getElementById('eRegion'));
 
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1406,7 +1522,12 @@
 
       // Add Modal controls
       const addModal = document.getElementById('addModal');
-      document.getElementById('openAddModalBtn').addEventListener('click', () => addModal.classList.remove('hidden'));
+      document.getElementById('openAddModalBtn').addEventListener('click', () => {
+        if (!document.getElementById('fName').value.trim()) {
+          setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
+        }
+        addModal.classList.remove('hidden');
+      });
       document.getElementById('closeAddModal').addEventListener('click', () => addModal.classList.add('hidden'));
       document.getElementById('cancelAddModal').addEventListener('click', () => addModal.classList.add('hidden'));
       addModal.addEventListener('click', e => { if (e.target === addModal) addModal.classList.add('hidden'); });
@@ -1484,7 +1605,7 @@
             })
           });
           e.target.reset();
-          document.getElementById('fRegion').value = 'cn-hongkong';
+          setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
           document.getElementById('fKeepAlive').checked = true;
           addModal.classList.add('hidden');
           renderAll();
