@@ -5,26 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CDT Smart Monitor</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
     :root {
-      --font-sans: 'Plus Jakarta Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
+      --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
     }
     body {
       font-family: var(--font-sans);
       background-color: #FAFAFA;
       color: #0F172A;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
+      -webkit-font-smoothing: auto;
+      -moz-osx-font-smoothing: auto;
+      text-rendering: auto;
+      font-optical-sizing: auto;
+    }
+    @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    }
+    body .font-sans {
+      font-family: var(--font-sans);
     }
     .font-mono-num {
       font-family: var(--font-mono);
       font-variant-numeric: tabular-nums;
     }
     .tab-btn {
-      color: #64748B;
+      color: #475569;
+      font-weight: 500;
       border-bottom: 2px solid transparent;
       transition: color 0.15s ease, border-color 0.15s ease;
     }
@@ -63,12 +78,11 @@
     .server-card-normal {
       background: #FFFFFF;
       border: 1px solid #E5E7EB;
-      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .server-card-normal:hover {
-      border-color: #CBD5E1;
-      transform: translateY(-2px);
-      box-shadow: 0 10px 28px -14px rgba(15, 23, 42, 0.12);
+      border-color: #94A3B8;
+      box-shadow: 0 10px 28px -14px rgba(15, 23, 42, 0.14);
     }
 
     /* Flowing luminous border for the active duty server card */
@@ -82,8 +96,19 @@
     }
     .duty-glow-wrap {
       position: relative;
-      border-radius: 1.05rem;
+      isolation: isolate;
+      border-radius: 18px;
       padding: 2px;
+      box-shadow: 0 12px 32px -14px rgba(79, 70, 229, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.08);
+      transition: box-shadow 0.2s ease;
+    }
+    .duty-glow-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      z-index: 0;
+      pointer-events: none;
       background: conic-gradient(
         from var(--glow-angle),
         #E2E8F0 0deg,
@@ -94,16 +119,15 @@
         #E2E8F0 360deg
       );
       animation: spin-glow 4.2s linear infinite;
-      box-shadow: 0 12px 32px -14px rgba(79, 70, 229, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.08);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .duty-glow-wrap:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 16px 36px -14px rgba(79, 70, 229, 0.34);
+      box-shadow: 0 16px 36px -14px rgba(79, 70, 229, 0.34), 0 0 0 1px rgba(99, 102, 241, 0.14);
     }
     .duty-glow-inner {
+      position: relative;
+      z-index: 1;
       background: #FFFFFF;
-      border-radius: calc(1.05rem - 2px);
+      border-radius: 16px;
       height: 100%;
     }
     @keyframes pulse-dot {
@@ -117,26 +141,26 @@
     ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
   </style>
 </head>
-<body class="min-h-screen antialiased selection:bg-slate-900 selection:text-white">
+<body class="min-h-screen selection:bg-slate-900 selection:text-white">
   <!-- Minimalist White Header -->
-  <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
       <div class="h-16 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold tracking-tight">
+          <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold">
             CDT
           </div>
-          <h1 class="text-sm sm:text-base font-semibold tracking-tight text-slate-900">CDT Smart Monitor</h1>
+          <h1 class="text-sm sm:text-base font-semibold text-slate-900">CDT Smart Monitor</h1>
         </div>
-        <div class="flex items-center gap-2 text-xs">
-          <span id="peakSplitBadge" class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">加载中...</span>
+        <div class="flex items-center gap-2 text-xs sm:text-[13px]">
+          <span id="peakSplitBadge" class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs text-slate-700 font-medium whitespace-nowrap">加载中...</span>
           <button type="button" id="openAddModalBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 font-medium transition">+ 添加节点</button>
           <button type="button" id="refreshAllBtn" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">全局同步</button>
-          <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 font-medium transition">退出</button>
+          <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-300 font-medium transition">退出</button>
         </div>
       </div>
 
-      <nav class="flex items-center gap-6 overflow-x-auto -mb-px text-xs sm:text-sm">
+      <nav class="flex items-center gap-6 overflow-x-auto -mb-px text-[13px] sm:text-sm">
         <button type="button" data-tab="servers" class="tab-btn active py-2.5 whitespace-nowrap">多机池与控制</button>
         <button type="button" data-tab="strategy" class="tab-btn py-2.5 whitespace-nowrap">智能轮换策略</button>
         <button type="button" data-tab="events" class="tab-btn py-2.5 whitespace-nowrap">动态排班与日志</button>
@@ -148,109 +172,109 @@
   <div id="toast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg"></div>
 
   <!-- Auth Gate Overlay -->
-  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-50/95 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-50 flex items-center justify-center p-4">
     <div class="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-7 space-y-5 shadow-sm">
       <div class="space-y-2">
         <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold">CDT</div>
-        <h2 id="authTitle" class="text-lg font-semibold tracking-tight text-slate-900">管理员登录</h2>
-        <p id="authSubtitle" class="text-xs text-slate-500 leading-relaxed">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
+        <h2 id="authTitle" class="text-lg font-semibold text-slate-900">管理员登录</h2>
+        <p id="authSubtitle" class="text-[13px] text-slate-600 leading-relaxed">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
       </div>
       <form id="authForm" class="space-y-3.5">
         <label class="block">
-          <span class="text-xs font-medium text-slate-700">管理员密码</span>
+          <span class="text-[13px] font-medium text-slate-700">管理员密码</span>
           <input id="authPassword" type="password" required minlength="6" placeholder="至少 6 位密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </label>
         <label id="authConfirmWrap" class="hidden block">
-          <span class="text-xs font-medium text-slate-700">确认管理员密码</span>
+          <span class="text-[13px] font-medium text-slate-700">确认管理员密码</span>
           <input id="authPasswordConfirm" type="password" minlength="6" placeholder="再次输入密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
         </label>
         <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">登录控制台</button>
       </form>
       <div id="passkeyLoginWrap" class="hidden pt-4 border-t border-slate-100 space-y-2">
         <button type="button" id="passkeyLoginBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 text-sm font-medium transition">使用 Passkey 通行密钥登录</button>
-        <p class="text-[11px] text-slate-400 text-center">支持 Face ID / Touch ID / Windows Hello（需 HTTPS）</p>
+        <p class="text-xs text-slate-600 leading-relaxed text-center">支持 Face ID / Touch ID / Windows Hello（需 HTTPS）</p>
       </div>
     </div>
   </div>
 
   <!-- Modal 1: Server Detail & Edit (triggered by clicking a server card) -->
-  <div id="serverModal" class="fixed inset-0 z-40 hidden bg-slate-900/30 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="serverModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
     <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
           <h3 id="modalTitle" class="text-base font-semibold text-slate-900">节点详情与密钥配置</h3>
-          <p id="modalSyncTime" class="text-[11px] text-slate-400 font-mono-num mt-0.5"></p>
+          <p id="modalSyncTime" class="text-xs text-slate-600 font-mono-num mt-0.5"></p>
         </div>
-        <button type="button" id="closeServerModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center text-lg">&times;</button>
+        <button type="button" id="closeServerModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
       </div>
       <form id="editServerForm" class="p-6 space-y-4">
         <input type="hidden" id="eId" />
         <!-- Read-only quick copy bar -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
           <div class="flex items-center justify-between gap-2">
-            <div class="truncate">
-              <div class="text-[10px] text-slate-400">公网 IP</div>
-              <div id="ePublicIP" class="font-mono-num text-slate-800 font-medium truncate">—</div>
+            <div class="min-w-0 truncate">
+              <div class="text-xs font-medium text-slate-600">公网 IP</div>
+              <div id="ePublicIP" class="text-[13px] font-mono-num text-slate-900 font-medium truncate">—</div>
             </div>
-            <button type="button" id="copyIPBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-[11px] text-slate-600">复制</button>
+            <button type="button" id="copyIPBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-xs font-medium text-slate-700">复制</button>
           </div>
           <div class="flex items-center justify-between gap-2">
-            <div class="truncate">
-              <div class="text-[10px] text-slate-400">实例 ID</div>
-              <div id="eInstDisplay" class="font-mono-num text-slate-800 font-medium truncate">—</div>
+            <div class="min-w-0 truncate">
+              <div class="text-xs font-medium text-slate-600">实例 ID</div>
+              <div id="eInstDisplay" class="text-[13px] font-mono-num text-slate-900 font-medium truncate">—</div>
             </div>
-            <button type="button" id="copyInstBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-[11px] text-slate-600">复制</button>
+            <button type="button" id="copyInstBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-xs font-medium text-slate-700">复制</button>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">节点名称</span>
+            <span class="text-xs font-medium text-slate-700">节点名称</span>
             <input id="eName" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">站点类型</span>
+            <span class="text-xs font-medium text-slate-700">站点类型</span>
             <select id="eSite" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
               <option value="intl">阿里云国际站 (USD)</option>
               <option value="china">阿里云中国站 (CNY)</option>
             </select>
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">地域 (RegionId)</span>
+            <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
             <input id="eRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">实例 ID</span>
+            <span class="text-xs font-medium text-slate-700">实例 ID</span>
             <input id="eInstanceID" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">AccessKey ID</span>
+            <span class="text-xs font-medium text-slate-700">AccessKey ID</span>
             <input id="eAkID" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">AccessKey Secret（留空不修改）</span>
+            <span class="text-xs font-medium text-slate-700">AccessKey Secret（留空不修改）</span>
             <input id="eAkSecret" type="password" placeholder="********" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">流量上限 (GB)</span>
+            <span class="text-xs font-medium text-slate-700">流量上限 (GB)</span>
             <input id="eMaxGB" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">金额上限 ($)</span>
+            <span class="text-xs font-medium text-slate-700">金额上限 ($)</span>
             <input id="eMaxUSD" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
         </div>
 
-        <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+        <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
           <input id="eKeepAlive" type="checkbox" class="w-4 h-4 accent-slate-900 rounded" />
           <span>启用抢占式实例保活（当班被抢占停机自动拉起，连续失败 3 次故障转移）</span>
         </label>
 
         <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-          <button type="button" id="modalDeleteBtn" class="px-3 py-2 rounded-xl text-xs font-medium text-rose-600 hover:bg-rose-50 transition">移出并删除节点</button>
+          <button type="button" id="modalDeleteBtn" class="px-3 py-2 rounded-xl text-[13px] font-medium text-rose-600 hover:bg-rose-50 transition">移出并删除节点</button>
           <div class="flex gap-2">
-            <button type="button" id="cancelServerModal" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50">取消</button>
-            <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition">保存修改</button>
+            <button type="button" id="cancelServerModal" class="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">取消</button>
+            <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium transition">保存修改</button>
           </div>
         </div>
       </form>
@@ -258,88 +282,88 @@
   </div>
 
   <!-- Modal 2: Add New Server -->
-  <div id="addModal" class="fixed inset-0 z-40 hidden bg-slate-900/30 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="addModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
     <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
           <h3 class="text-base font-semibold text-slate-900">添加阿里云 ECS 实例</h3>
-          <p class="text-xs text-slate-500 mt-0.5">AccessKey Secret 将在服务端以 AES-256-GCM 加密存储。</p>
+          <p class="text-xs text-slate-600 mt-0.5">AccessKey Secret 将在服务端以 AES-256-GCM 加密存储。</p>
         </div>
-        <button type="button" id="closeAddModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center text-lg">&times;</button>
+        <button type="button" id="closeAddModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
       </div>
       <form id="addServerForm" class="p-6 space-y-4">
         <div class="grid grid-cols-2 gap-3">
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">节点名称</span>
+            <span class="text-xs font-medium text-slate-700">节点名称</span>
             <input id="fName" required placeholder="如 hk1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">站点类型</span>
+            <span class="text-xs font-medium text-slate-700">站点类型</span>
             <select id="fSite" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
               <option value="intl">阿里云国际站 (USD)</option>
               <option value="china">阿里云中国站 (CNY)</option>
             </select>
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">地域 (RegionId)</span>
+            <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
             <input id="fRegion" required value="cn-hongkong" placeholder="cn-hongkong" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">实例 ID</span>
+            <span class="text-xs font-medium text-slate-700">实例 ID</span>
             <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">AccessKey ID</span>
+            <span class="text-xs font-medium text-slate-700">AccessKey ID</span>
             <input id="fAkID" required placeholder="LTAI5t..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">AccessKey Secret</span>
+            <span class="text-xs font-medium text-slate-700">AccessKey Secret</span>
             <input id="fAkSecret" type="password" required placeholder="输入 RAM Secret" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">流量上限 (GB)</span>
+            <span class="text-xs font-medium text-slate-700">流量上限 (GB)</span>
             <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">金额上限 ($)</span>
+            <span class="text-xs font-medium text-slate-700">金额上限 ($)</span>
             <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
         </div>
-        <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+        <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
           <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-slate-900 rounded" />
           <span>启用抢占式实例保活</span>
         </label>
         <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
-          <button type="button" id="cancelAddModal" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50">取消</button>
-          <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition">加入轮换池</button>
+          <button type="button" id="cancelAddModal" class="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">取消</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium transition">加入轮换池</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Modal 3: Edit Hourly Schedule Slot (triggered by clicking any cell in 24h Gantt) -->
-  <div id="slotModal" class="fixed inset-0 z-40 hidden bg-slate-900/30 backdrop-blur-xs flex items-center justify-center p-4">
+  <div id="slotModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
     <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
           <h3 id="slotModalTitle" class="text-base font-semibold text-slate-900">修改排班时段</h3>
-          <p id="slotModalSub" class="text-xs text-slate-500 mt-0.5">智能推荐：—</p>
+          <p id="slotModalSub" class="text-[13px] text-slate-600 mt-0.5">智能推荐：—</p>
         </div>
-        <button type="button" id="closeSlotModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center text-lg">&times;</button>
+        <button type="button" id="closeSlotModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
       </div>
       <div class="p-6 space-y-4">
         <input type="hidden" id="slotModalHour" />
         <div class="space-y-1.5">
-          <div class="text-xs font-medium text-slate-600">生效范围</div>
+          <div class="text-[13px] font-medium text-slate-700">生效范围</div>
           <div id="slotScopeBtns" class="flex flex-wrap gap-1.5 text-xs">
             <button type="button" data-scope="1" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-900 bg-slate-900 text-white font-medium">仅本小时</button>
-            <button type="button" data-scope="2" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">连续 2 小时</button>
-            <button type="button" data-scope="3" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">连续 3 小时</button>
-            <button type="button" data-scope="peak" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-400">整个高峰时段</button>
+            <button type="button" data-scope="2" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">连续 2 小时</button>
+            <button type="button" data-scope="3" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">连续 3 小时</button>
+            <button type="button" data-scope="peak" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">整个高峰时段</button>
           </div>
         </div>
         <div class="space-y-2">
-          <div class="text-xs font-medium text-slate-600">选择该时段的值班方式</div>
+          <div class="text-[13px] font-medium text-slate-700">选择该时段的值班方式</div>
           <div id="slotTargetList" class="grid grid-cols-1 gap-2"></div>
         </div>
       </div>
@@ -351,19 +375,19 @@
     <section id="tab-servers" class="tab-panel space-y-6">
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-[11px] text-slate-500 font-medium">池内健康节点</div>
+          <div class="text-xs text-slate-600 font-medium">池内健康节点</div>
           <div id="kpiHealthy" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0 / 0</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-[11px] text-slate-500 font-medium">当前当班节点</div>
+          <div class="text-xs text-slate-600 font-medium">当前当班节点</div>
           <div id="kpiDuty" class="text-base font-semibold text-slate-900 mt-1.5 truncate">—</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-[11px] text-slate-500 font-medium">累计已用流量</div>
+          <div class="text-xs text-slate-600 font-medium">累计已用流量</div>
           <div id="kpiTraffic" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0.0 GB</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-[11px] text-slate-500 font-medium">累计本月费用</div>
+          <div class="text-xs text-slate-600 font-medium">累计本月费用</div>
           <div id="kpiCost" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">$0.000</div>
         </div>
       </div>
@@ -372,14 +396,14 @@
       <div class="card-surface rounded-2xl p-4 sm:p-5 space-y-3.5">
         <div class="flex flex-wrap items-center justify-between gap-2.5">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-semibold text-slate-900">当班调度模式</span>
-            <span id="dutyModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">⚡ 智能排班运行中</span>
-            <span id="balanceScoreBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-slate-200 bg-slate-50 text-slate-600">均衡度 100%</span>
+            <span class="text-sm font-semibold text-slate-900">当班调度模式</span>
+            <span id="dutyModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">⚡ 智能排班运行中</span>
+            <span id="balanceScoreBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-slate-200 bg-slate-50 text-slate-600">均衡度 100%</span>
           </div>
           <div class="flex flex-wrap items-center gap-2 text-xs">
-            <label class="inline-flex items-center gap-1.5 text-slate-500">
+            <label class="inline-flex items-center gap-1.5 text-slate-600 font-medium">
               <span>自动切回</span>
-              <select id="quickRevertSelect" class="input-line rounded-lg px-2 py-1 text-xs">
+              <select id="quickRevertSelect" class="input-line rounded-lg px-2 py-1 text-[13px]">
                 <option value="next_slot">下个排班槽位</option>
                 <option value="duration:60">1 小时后</option>
                 <option value="duration:120">2 小时后</option>
@@ -397,7 +421,7 @@
       <div class="space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold text-slate-900">实例列表</h2>
-          <span class="text-xs text-slate-400">点击任意卡片查看 IP / 实例 ID 与编辑密钥</span>
+          <span class="text-xs text-slate-600">点击任意卡片查看 IP / 实例 ID 与编辑密钥</span>
         </div>
         <div id="serversGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
@@ -409,22 +433,22 @@
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div class="flex items-start justify-between gap-2">
             <div>
-              <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">01 · 使用时段</span>
+              <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">01 · 使用时段</span>
               <h2 class="text-base font-semibold text-slate-900 mt-0.5">每日活跃使用时段</h2>
-              <p class="text-xs text-slate-500 mt-1">非使用时段自动对全池执行集体节省停机（StopCharging）。</p>
+              <p class="text-[13px] text-slate-600 leading-relaxed mt-1">非使用时段自动对全池执行集体节省停机（StopCharging）。</p>
             </div>
-            <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+            <label class="inline-flex items-center gap-2 text-[13px] font-medium text-slate-700 cursor-pointer">
               <input id="pEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
               启用智能轮换
             </label>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">开始时间</span>
+              <span class="text-[13px] font-medium text-slate-700">开始时间</span>
               <select id="pActiveStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">结束时间</span>
+              <span class="text-[13px] font-medium text-slate-700">结束时间</span>
               <select id="pActiveEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
           </div>
@@ -432,21 +456,21 @@
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">02 · 高峰期动态均衡</span>
+            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">02 · 高峰期动态均衡</span>
             <h2 class="text-base font-semibold text-slate-900 mt-0.5">高峰时段与单班突发上限</h2>
-            <p class="text-xs text-slate-500 mt-1">按健康机器数自动均分时长，每日自动互换槽位，余量差 ≥ 20% 自动纠偏顶班。</p>
+            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">按健康机器数自动均分时长，每日自动互换槽位，余量差 ≥ 20% 自动纠偏顶班。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">高峰开始</span>
+              <span class="text-[13px] font-medium text-slate-700">高峰开始</span>
               <select id="pPeakStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">高峰结束</span>
+              <span class="text-[13px] font-medium text-slate-700">高峰结束</span>
               <select id="pPeakEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">单班突发上限 (GB)</span>
+              <span class="text-[13px] font-medium text-slate-700">单班突发上限 (GB)</span>
               <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
           </div>
@@ -454,38 +478,38 @@
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">03 · 轮换风格</span>
+            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">03 · 轮换风格</span>
             <h2 class="text-base font-semibold text-slate-900 mt-0.5">选择多机轮换模式</h2>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button type="button" data-strategy="smart_hybrid" class="strategy-card text-left p-4 rounded-xl">
               <div class="text-sm font-semibold text-slate-900">智能高峰均衡</div>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">闲时集体关机，高峰按机数自动均分与动态纠偏。</p>
+              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">闲时集体关机，高峰按机数自动均分与动态纠偏。</p>
             </button>
             <button type="button" data-strategy="exhaust_sequential" class="strategy-card text-left p-4 rounded-xl">
               <div class="text-sm font-semibold text-slate-900">顺序榨干接力</div>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">单机持续运行至触及流量或金额线再无缝接力。</p>
+              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">单机持续运行至触及流量或金额线再无缝接力。</p>
             </button>
             <button type="button" data-strategy="continuous_round_robin" class="strategy-card text-left p-4 rounded-xl">
               <div class="text-sm font-semibold text-slate-900">持续均摊轮换</div>
-              <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">全活跃时段按余量健康度持续均匀轮流上岗。</p>
+              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">全活跃时段按余量健康度持续均匀轮流上岗。</p>
             </button>
           </div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">04 · 默认双上限</span>
+            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">04 · 默认双上限</span>
             <h2 class="text-base font-semibold text-slate-900 mt-0.5">单机默认流量与金额上限</h2>
-            <p class="text-xs text-slate-500 mt-1">系统内部统一预留 30GB 流量安全垫与 $0.05 金额安全垫。</p>
+            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">系统内部统一预留 30GB 流量安全垫与 $0.05 金额安全垫。</p>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">默认流量上限 (GB)</span>
+              <span class="text-[13px] font-medium text-slate-700">默认流量上限 (GB)</span>
               <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">默认金额上限 ($)</span>
+              <span class="text-[13px] font-medium text-slate-700">默认金额上限 ($)</span>
               <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
           </div>
@@ -493,13 +517,13 @@
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-[11px] font-mono-num uppercase tracking-wider text-slate-400">05 · 手动接管与自动切回</span>
+            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">05 · 手动接管与自动切回</span>
             <h2 class="text-base font-semibold text-slate-900 mt-0.5">自动切回智能排班规则</h2>
-            <p class="text-xs text-slate-500 mt-1">类似 Mihomo 的「自动选择 / 手动选择」：手动切换当班机器后，可按规则自动切回智能均衡排班；触及安全线始终自动兜底。</p>
+            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">类似 Mihomo 的「自动选择 / 手动选择」：手动切换当班机器后，可按规则自动切回智能均衡排班；触及安全线始终自动兜底。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">手动选机后自动切回策略</span>
+              <span class="text-[13px] font-medium text-slate-700">手动选机后自动切回策略</span>
               <select id="pRevertMode" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
                 <option value="next_slot">下一个排班槽位切换时自动切回（推荐）</option>
                 <option value="duration">固定时长后自动切回</option>
@@ -508,11 +532,11 @@
               </select>
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">固定切回时长（分钟，仅固定时长模式）</span>
+              <span class="text-[13px] font-medium text-slate-700">固定切回时长（分钟，仅固定时长模式）</span>
               <input id="pRevertMins" type="number" min="15" max="1440" step="15" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
           </div>
-          <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
             <input id="pOverridesAutoReset" type="checkbox" class="w-4 h-4 accent-slate-900 rounded" />
             <span>24 小时排班表的手动修改在 <strong>次日 00:00 自动清空并恢复智能排班</strong></span>
           </label>
@@ -522,7 +546,7 @@
       <div class="lg:col-span-5">
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 sticky top-28">
           <h3 class="text-sm font-semibold text-slate-900">内置风控与动态均衡引擎</h3>
-          <div class="divide-y divide-slate-100 text-xs text-slate-600 leading-relaxed">
+          <div class="divide-y divide-slate-100 text-[13px] text-slate-700 leading-relaxed">
             <div class="py-3 first:pt-0">
               <div class="font-semibold text-slate-900 mb-0.5">内置安全缓冲保护（最高优先级）</div>
               系统会在设定的流量上限与费用上限前自动预留安全缓冲（以抵御云端统计与出账延迟），到达保护线即自动停机锁定，即使处于手动值班模式也强制兜底生效。
@@ -542,7 +566,7 @@
           </div>
           <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
             <button type="button" id="savePoolBtn" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存智能策略</button>
-            <button type="button" id="saveAndSyncLimitsBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200 transition">保存并同步双上限至全池</button>
+            <button type="button" id="saveAndSyncLimitsBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-[13px] font-medium border border-slate-300 transition">保存并同步双上限至全池</button>
           </div>
         </div>
       </div>
@@ -554,32 +578,32 @@
         <div class="flex flex-wrap items-center justify-between gap-2.5">
           <div>
             <h2 class="text-sm font-semibold text-slate-900">今日 24 小时动态排班表</h2>
-            <p class="text-[11px] text-slate-500 mt-0.5">点击任意小时格子即可手动指定值班节点、强制休眠或恢复智能排班。</p>
+            <p class="text-[13px] text-slate-600 mt-0.5">点击任意小时格子即可手动指定值班节点、强制休眠或恢复智能排班。</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-medium">动态均衡</span>
+            <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-700 font-medium">动态均衡</span>
             <button type="button" id="resetAllScheduleBtn" class="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-800 transition">⚡ 全部恢复智能排班</button>
           </div>
         </div>
-        <div id="serverLoadStrip" class="flex flex-wrap gap-2 text-[11px]"></div>
-        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+        <div id="serverLoadStrip" class="flex flex-wrap gap-2 text-xs"></div>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 font-medium">
           <div class="flex flex-wrap gap-4">
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>休眠停机</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200"></span>平峰均衡</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-300"></span>高峰加权</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-50 border border-indigo-400"></span>手动修改</span>
           </div>
-          <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-600">
+          <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-700">
             <input id="ganttAutoResetDaily" type="checkbox" class="w-3.5 h-3.5 accent-slate-900 rounded" />
             <span>次日 00:00 自动恢复智能排班</span>
           </label>
         </div>
-        <div id="ganttPreview" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));"></div>
+        <div id="ganttPreview" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-1.5"></div>
       </div>
 
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3">
         <h2 class="text-sm font-semibold text-slate-900">实时调度与操作日志</h2>
-        <div id="eventsList" class="divide-y divide-slate-100 max-h-[480px] overflow-y-auto text-xs"></div>
+        <div id="eventsList" class="divide-y divide-slate-100 max-h-[480px] overflow-y-auto text-[13px] leading-5"></div>
       </div>
     </section>
 
@@ -588,15 +612,15 @@
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 h-fit">
         <div class="pb-3 border-b border-slate-100">
           <h2 class="text-sm font-semibold text-slate-900">通知渠道、代理与每周周报</h2>
-          <p class="text-xs text-slate-500 mt-0.5">支持 HTTP / HTTPS / SOCKS5 代理、Telegram 反代与每周一 08:00 定时周报。</p>
+          <p class="text-[13px] text-slate-600 mt-0.5">支持 HTTP / HTTPS / SOCKS5 代理、Telegram 反代与每周一 08:00 定时周报。</p>
         </div>
         <div class="space-y-3">
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">通知代理地址（留空直连）</span>
+            <span class="text-[13px] font-medium text-slate-700">通知代理地址（留空直连）</span>
             <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://ip:port" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-xs font-medium text-slate-600">Telegram API 反代地址（可选）</span>
+            <span class="text-[13px] font-medium text-slate-700">Telegram API 反代地址（可选）</span>
             <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
           </label>
         </div>
@@ -607,11 +631,11 @@
           </label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">Bot Token</span>
+              <span class="text-[13px] font-medium text-slate-700">Bot Token</span>
               <input id="nTgToken" type="password" placeholder="123456:ABC..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
             <label class="block">
-              <span class="text-xs font-medium text-slate-600">Chat ID</span>
+              <span class="text-[13px] font-medium text-slate-700">Chat ID</span>
               <input id="nTgChat" placeholder="你的 Chat ID" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
             </label>
           </div>
@@ -624,15 +648,15 @@
           <input id="nWhURL" placeholder="https://example.com/webhook" class="input-line w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
         </div>
         <div class="pt-2 border-t border-slate-100">
-          <label class="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+          <label class="inline-flex items-center gap-2 text-[13px] font-medium text-slate-700 cursor-pointer">
             <input id="nWeeklyEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
             <span>启用 <strong>每周一 08:00 定时周报</strong>（自动汇总每台机器当月流量与费用）</span>
           </label>
         </div>
         <div class="flex flex-wrap gap-2 pt-2">
           <button type="button" id="saveNotifyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存配置</button>
-          <button type="button" id="testNotifyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-medium transition">发送测试消息</button>
-          <button type="button" id="testWeeklyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-medium transition">立即发一次周报</button>
+          <button type="button" id="testNotifyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[13px] font-medium transition">发送测试消息</button>
+          <button type="button" id="testWeeklyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[13px] font-medium transition">立即发一次周报</button>
         </div>
       </div>
 
@@ -641,15 +665,15 @@
           <div class="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-slate-100">
             <div>
               <h2 class="text-sm font-semibold text-slate-900">Passkey 通行密钥（HTTPS）</h2>
-              <p class="text-xs text-slate-500 mt-0.5">在 HTTPS 反代域名下绑定 Face ID / Touch ID / Windows Hello 免密登录。</p>
+              <p class="text-[13px] text-slate-600 mt-0.5">在 HTTPS 反代域名下绑定 Face ID / Touch ID / Windows Hello 免密登录。</p>
             </div>
-            <span id="httpsStatusBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-600">检测中...</span>
+            <span id="httpsStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700">检测中...</span>
           </div>
           <div class="flex flex-wrap gap-2">
             <input id="pkNameInput" placeholder="密钥备注（如 MacBook / iPhone）" class="input-line flex-1 min-w-[180px] rounded-xl px-3 py-2 text-sm" />
             <button type="button" id="registerPasskeyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">+ 绑定 Passkey</button>
           </div>
-          <div id="passkeysList" class="divide-y divide-slate-100 text-xs"></div>
+          <div id="passkeysList" class="divide-y divide-slate-100 text-[13px]"></div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3.5">
@@ -664,15 +688,15 @@
     </section>
   </main>
 
-  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-10 mt-6 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-10 mt-6 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
     <div>
-      <a href="https://github.com/yellowdking/cdt-smart-monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-700 transition font-medium">CDT Smart Monitor</a>
+      <a href="https://github.com/yellowdking/cdt-smart-monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 transition font-medium">CDT Smart Monitor</a>
       <span class="mx-1.5">·</span>
       <span>MIT License</span>
     </div>
     <div>
       Inspired by
-      <a href="https://github.com/wang4386/CDT-Monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-700 underline underline-offset-2 transition">wang4386/CDT-Monitor</a>
+      <a href="https://github.com/wang4386/CDT-Monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 underline underline-offset-2 transition">wang4386/CDT-Monitor</a>
     </div>
   </footer>
 
@@ -872,27 +896,27 @@
           ? `将于 ${sched.manual_until}（约 ${sched.manual_remain_mins}m 后）自动切回`
           : '持续保持直到一键切回';
         modeBadge.textContent = `✋ 手动指定：${sched.manual_server_name || '—'} · ${rem}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-indigo-300 bg-indigo-50 text-indigo-800';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-indigo-300 bg-indigo-50 text-indigo-800';
       } else if (mode === 'manual_slot') {
         modeBadge.textContent = `🗓 ${sched.mode_summary || '手动排班时段'}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-sky-300 bg-sky-50 text-sky-800';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-sky-300 bg-sky-50 text-sky-800';
       } else {
         modeBadge.textContent = `⚡ ${sched ? sched.mode_summary : '智能排班运行中'}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700';
       }
 
       scoreBadge.textContent = `均衡度 ${score}%`;
       scoreBadge.className = score >= 85
-        ? 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-emerald-200 bg-emerald-50 text-emerald-700'
+        ? 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-emerald-200 bg-emerald-50 text-emerald-700'
         : (score >= 65
-          ? 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-amber-200 bg-amber-50 text-amber-800'
-          : 'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono-num border border-rose-200 bg-rose-50 text-rose-700');
+          ? 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-amber-200 bg-amber-50 text-amber-800'
+          : 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-rose-200 bg-rose-50 text-rose-700');
 
       if (isManual) {
         returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 transition shadow-xs';
         returnBtn.disabled = false;
       } else {
-        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 text-slate-400 border border-slate-200 cursor-default';
+        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 cursor-default';
         returnBtn.disabled = true;
       }
 
@@ -901,7 +925,7 @@
         : 'border-slate-200 bg-white text-slate-700 hover:border-slate-900';
 
       const pills = [
-        `<button type="button" data-pick-duty="0" class="px-3 py-1.5 rounded-xl border text-xs font-medium transition ${autoCls}">⚡ 智能自动</button>`
+        `<button type="button" data-pick-duty="0" class="px-3 py-1.5 rounded-xl border text-[13px] font-medium transition ${autoCls}">⚡ 智能自动</button>`
       ];
       servers.forEach(s => {
         const locked = isLockActive(s);
@@ -910,14 +934,15 @@
         const isCurrentAuto = !isManual && p.current_server_id === s.id;
         let cls = 'border-slate-200 bg-white text-slate-700 hover:border-indigo-400 hover:text-indigo-700';
         if (locked) {
-          cls = 'border-slate-200 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed';
+          cls = 'border-slate-200 bg-slate-50 text-slate-500 opacity-80 cursor-not-allowed';
         } else if (isManualSelected) {
           cls = 'border-indigo-600 bg-indigo-600 text-white shadow-xs';
         } else if (isCurrentAuto) {
           cls = 'border-emerald-300 bg-emerald-50/70 text-emerald-800 hover:border-indigo-400';
         }
         const tag = locked ? '已锁' : (isManualSelected ? '手动中' : `${hr}%`);
-        pills.push(`<button type="button" data-pick-duty="${s.id}" ${locked ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border text-xs font-medium transition inline-flex items-center gap-1.5 ${cls}"><span>${esc(s.name)}</span><span class="font-mono-num text-[10px] opacity-80">${tag}</span></button>`);
+        const tagCls = isManualSelected ? 'text-indigo-100' : (isCurrentAuto ? 'text-emerald-700' : (locked ? 'text-slate-500' : 'text-slate-600'));
+        pills.push(`<button type="button" data-pick-duty="${s.id}" ${locked ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border text-[13px] font-medium transition inline-flex items-center gap-1.5 ${cls}"><span>${esc(s.name)}</span><span class="font-mono-num text-xs ${tagCls}">${tag}</span></button>`);
       });
       pillsBox.innerHTML = pills.join('');
     }
@@ -925,7 +950,7 @@
     function renderServers(servers, currentID) {
       const grid = document.getElementById('serversGrid');
       if (servers.length === 0) {
-        grid.innerHTML = '<div class="col-span-full text-center py-16 bg-white border border-dashed border-slate-300 rounded-2xl text-sm text-slate-500">暂无服务器，点击右上角「+ 添加节点」加入至少 2 台实例即可开启智能轮换。</div>';
+        grid.innerHTML = '<div class="col-span-full text-center py-16 bg-white border border-dashed border-slate-300 rounded-2xl text-sm text-slate-600">暂无服务器，点击右上角「+ 添加节点」加入至少 2 台实例即可开启智能轮换。</div>';
         return;
       }
       grid.innerHTML = servers.map(s => {
@@ -939,7 +964,7 @@
         const locked = isLockActive(s);
         const sym = currencySym(s.site);
         const dotCls = isRun ? 'bg-emerald-500 live-dot' : 'bg-slate-300';
-        const stText = isRun ? 'text-emerald-700' : 'text-slate-500';
+        const stText = isRun ? 'text-emerald-700' : 'text-slate-600';
 
         const cardBody = `
           <div class="p-5 flex flex-col justify-between gap-4 h-full cursor-pointer" data-open-detail="${s.id}">
@@ -947,30 +972,30 @@
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="font-semibold text-base text-slate-900 truncate">${esc(s.name)}</span>
-                  ${isDuty ? '<span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white tracking-wide">当班中</span>' : ''}
+                  ${isDuty ? '<span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white">当班中</span>' : ''}
                 </div>
                 <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium ${stText}">
                   <span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(s.status || 'Unknown')}
                 </span>
               </div>
 
-              ${locked ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">本月已熔断锁定（${esc(s.lock_reason)}）</div>` : ''}
-              ${s.last_error ? `<div class="text-[11px] px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 truncate" title="${esc(s.last_error)}">同步提示：${esc(s.last_error)}</div>` : ''}
+              ${locked ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-medium">本月已熔断锁定（${esc(s.lock_reason)}）</div>` : ''}
+              ${s.last_error ? `<div class="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 truncate" title="${esc(s.last_error)}">同步提示：${esc(s.last_error)}</div>` : ''}
 
               <div class="space-y-3 pt-1">
                 <div>
-                  <div class="flex justify-between text-xs mb-1.5">
-                    <span class="text-slate-500">CDT 流量</span>
-                    <span class="font-mono-num font-medium text-slate-900">${s.used_traffic_gb.toFixed(2)} <span class="text-slate-400 font-normal">/ ${s.max_traffic_gb} GB</span></span>
+                  <div class="flex justify-between text-[13px] leading-5 mb-1.5">
+                    <span class="text-slate-600 font-medium">CDT 流量</span>
+                    <span class="font-mono-num font-medium text-slate-900">${s.used_traffic_gb.toFixed(2)} <span class="text-slate-600 font-normal">/ ${s.max_traffic_gb} GB</span></span>
                   </div>
                   <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                     <div class="h-full rounded-full ${effT > 0 && s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
                   </div>
                 </div>
                 <div>
-                  <div class="flex justify-between text-xs mb-1.5">
-                    <span class="text-slate-500">本月费用</span>
-                    <span class="font-mono-num font-medium text-slate-900">${sym}${s.billed_cost_usd.toFixed(3)} <span class="text-slate-400 font-normal">/ ${sym}${s.max_cost_usd.toFixed(2)}</span></span>
+                  <div class="flex justify-between text-[13px] leading-5 mb-1.5">
+                    <span class="text-slate-600 font-medium">本月费用</span>
+                    <span class="font-mono-num font-medium text-slate-900">${sym}${s.billed_cost_usd.toFixed(3)} <span class="text-slate-600 font-normal">/ ${sym}${s.max_cost_usd.toFixed(2)}</span></span>
                   </div>
                   <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                     <div class="h-full rounded-full ${effC > 0 && s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
@@ -979,15 +1004,15 @@
               </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 text-xs">
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 text-xs font-medium">
               <div class="flex flex-wrap items-center gap-1.5">
                 <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">开机</button>
                 <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">停机</button>
                 <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">刷新</button>
-                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition disabled:opacity-50 ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-400 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
+                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition disabled:opacity-50 ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
                 ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-50">解锁</button>` : ''}
               </div>
-              <span class="font-mono-num text-[11px] text-slate-400" title="综合健康余量">${headroomPct}%</span>
+              <span class="font-mono-num text-xs font-medium text-slate-600" title="综合健康余量">${headroomPct}%</span>
             </div>
           </div>`;
 
@@ -1034,7 +1059,7 @@
       }
 
       if (!sched || !sched.hours) {
-        box.innerHTML = '<div class="col-span-full text-xs text-slate-400 py-4 text-center">排班加载中...</div>';
+        box.innerHTML = '<div class="col-span-full text-[13px] text-slate-600 py-4 text-center">排班加载中...</div>';
         return;
       }
 
@@ -1059,9 +1084,9 @@
             return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono-num ${cls}">
               <strong class="font-sans text-slate-900">${esc(pl.name)}</strong>
               <span>余量 ${pl.headroom_pct}%</span>
-              <span class="opacity-40">·</span>
+              <span class="text-slate-400">·</span>
               <span>权重 ${pl.weight_pct}%</span>
-              <span class="opacity-40">·</span>
+              <span class="text-slate-400">·</span>
               <span>今日 ${pl.scheduled_hours}h (高峰 ${pl.peak_hours}h)</span>
             </span>`;
           }).join('');
@@ -1069,19 +1094,24 @@
       }
 
       const cells = sched.hours.map(slot => {
-        let cls = 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-400';
+        let cls = 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400';
+        let hrCls = 'text-slate-500';
         let lbl = '休眠';
         if (slot.phase === 'exhausted') {
           cls = 'bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-400';
+          hrCls = 'text-rose-600';
           lbl = '无可用';
         } else if (slot.source === 'manual_slot' || slot.source === 'manual_live') {
           cls = 'bg-indigo-50 text-indigo-900 border-indigo-400 hover:border-indigo-600';
+          hrCls = 'text-indigo-700';
           lbl = slot.server_id > 0 ? slot.server_name.slice(0, 6) : '休眠';
         } else if (slot.phase === 'peak') {
           cls = 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-500';
+          hrCls = 'text-amber-700';
           lbl = (slot.server_name || '—').slice(0, 6);
         } else if (slot.phase === 'normal') {
           cls = 'bg-blue-50 text-blue-900 border-blue-200 hover:border-blue-400';
+          hrCls = 'text-blue-700';
           lbl = (slot.server_name || '—').slice(0, 6);
         }
         const curRing = slot.is_current_hour ? ' ring-2 ring-slate-900 ring-offset-1' : '';
@@ -1091,8 +1121,8 @@
         const tip = `${String(slot.hour).padStart(2,'0')}:00 · ${slot.server_name || '休眠'}（${slot.source === 'auto' ? '智能排班' : '手动修改'}）— 点击修改`;
         return `<button type="button" data-edit-hour="${slot.hour}" title="${esc(tip)}" class="relative flex flex-col items-center py-2 px-1 rounded-lg border transition cursor-pointer ${cls}${curRing}">
           ${manualDot}
-          <span class="font-mono-num text-[10px] opacity-70">${String(slot.hour).padStart(2,'0')}</span>
-          <span class="text-[11px] font-medium mt-1 truncate max-w-full">${esc(lbl)}</span>
+          <span class="font-mono-num text-[11px] font-medium ${hrCls}">${String(slot.hour).padStart(2,'0')}</span>
+          <span class="text-xs font-medium mt-1 truncate max-w-full">${esc(lbl)}</span>
         </button>`;
       });
       box.innerHTML = cells.join('');
@@ -1109,28 +1139,28 @@
       selectedSlotScope = '1';
       document.querySelectorAll('.slot-scope-btn').forEach(b => {
         const active = b.dataset.scope === '1';
-        b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs transition ' +
-          (active ? 'border-slate-900 bg-slate-900 text-white font-medium' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+        b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ' +
+          (active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
       });
 
       const list = document.getElementById('slotTargetList');
       const items = [
-        `<button type="button" data-slot-target="0" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === 0 ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-xs transition">
+        `<button type="button" data-slot-target="0" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === 0 ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-[13px] transition">
           <span class="font-medium text-slate-900">⚡ 跟随智能排班（推荐：${esc(autoDesc)}）</span>
-          <span class="text-[11px] text-slate-400">自动</span>
+          <span class="text-xs font-medium text-slate-600">自动</span>
         </button>`,
-        `<button type="button" data-slot-target="-1" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === -1 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-xs transition">
+        `<button type="button" data-slot-target="-1" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === -1 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-[13px] transition">
           <span class="font-medium text-slate-800">🌙 强制休眠停机（StopCharging）</span>
-          <span class="text-[11px] text-slate-400">手动</span>
+          <span class="text-xs font-medium text-slate-600">手动</span>
         </button>`
       ];
       (appState.servers || []).forEach(s => {
         const locked = isLockActive(s);
         const hr = Math.round(serverHeadroom(s) * 100);
         const active = slot.manual_override === s.id;
-        items.push(`<button type="button" data-slot-target="${s.id}" ${locked ? 'disabled' : ''} class="w-full text-left px-3.5 py-2.5 rounded-xl border ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400 bg-white'} flex items-center justify-between text-xs transition ${locked ? 'opacity-50 cursor-not-allowed' : ''}">
+        items.push(`<button type="button" data-slot-target="${s.id}" ${locked ? 'disabled' : ''} class="w-full text-left px-3.5 py-2.5 rounded-xl border ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400 bg-white'} flex items-center justify-between text-[13px] transition ${locked ? 'opacity-50 cursor-not-allowed' : ''}">
           <span class="font-medium text-slate-900">🖥 指定节点：${esc(s.name)}</span>
-          <span class="font-mono-num text-[11px] ${locked ? 'text-rose-600' : 'text-slate-500'}">${locked ? '已熔断锁定' : '余量 ' + hr + '%'}</span>
+          <span class="font-mono-num text-xs font-medium ${locked ? 'text-rose-600' : 'text-slate-600'}">${locked ? '已熔断锁定' : '余量 ' + hr + '%'}</span>
         </button>`);
       });
       list.innerHTML = items.join('');
@@ -1189,7 +1219,7 @@
     function renderEvents(events) {
       const list = document.getElementById('eventsList');
       if (events.length === 0) {
-        list.innerHTML = '<div class="text-slate-400 py-6 text-center">暂无调度日志</div>';
+        list.innerHTML = '<div class="text-slate-600 py-6 text-center">暂无调度日志</div>';
         return;
       }
       list.innerHTML = events.map(ev => {
@@ -1197,10 +1227,10 @@
           ? 'text-rose-700 bg-rose-50 border-rose-200'
           : (ev.level === 'warn' ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-slate-700 bg-slate-50 border-slate-200');
         return `<div class="flex flex-wrap items-center gap-2.5 py-2.5">
-          <span class="font-mono-num text-slate-400">${esc(ev.time)}</span>
-          <span class="px-2 py-0.5 rounded-md border font-medium ${badge}">${esc(ev.action)}</span>
+          <span class="font-mono-num text-xs text-slate-600">${esc(ev.time)}</span>
+          <span class="px-2 py-0.5 rounded-md border text-xs font-medium ${badge}">${esc(ev.action)}</span>
           <span class="text-slate-900 font-medium">${esc(ev.server)}</span>
-          <span class="text-slate-500">${esc(ev.message)}</span>
+          <span class="text-slate-700">${esc(ev.message)}</span>
         </div>`;
       }).join('');
     }
@@ -1335,8 +1365,8 @@
         selectedSlotScope = btn.dataset.scope;
         document.querySelectorAll('.slot-scope-btn').forEach(b => {
           const active = b.dataset.scope === selectedSlotScope;
-          b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs transition ' +
-            (active ? 'border-slate-900 bg-slate-900 text-white font-medium' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+          b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ' +
+            (active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
         });
       });
       document.getElementById('slotTargetList').addEventListener('click', e => {
@@ -1565,16 +1595,16 @@
         const isSecure = window.isSecureContext || authStatus.is_https;
         badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 启用）';
         badge.className = isSecure
-          ? 'px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700'
-          : 'px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-amber-200 bg-amber-50 text-amber-800';
+          ? 'px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800';
         if (!list || list.length === 0) {
-          box.innerHTML = '<div class="text-slate-400 py-3">尚未绑定 Passkey 通行密钥</div>';
+          box.innerHTML = '<div class="text-slate-600 py-3">尚未绑定 Passkey 通行密钥</div>';
           return;
         }
         box.innerHTML = list.map(pk => `
           <div class="flex items-center justify-between gap-2 py-2.5">
-            <div><span class="text-slate-900 font-medium">${esc(pk.name)}</span> <span class="font-mono-num text-slate-400 ml-2">${esc(pk.created_at)}</span></div>
-            <button type="button" data-del-pk="${esc(pk.id)}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 transition">删除</button>
+            <div><span class="text-slate-900 font-medium">${esc(pk.name)}</span> <span class="font-mono-num text-xs text-slate-600 ml-2">${esc(pk.created_at)}</span></div>
+            <button type="button" data-del-pk="${esc(pk.id)}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-xs font-medium text-slate-700 hover:text-rose-600 transition">删除</button>
           </div>
         `).join('');
       }
