@@ -167,6 +167,12 @@ func CheckRefreshDelta(s domain.Server, inPeak bool, peakMaxSliceGB, sliceStartT
 
 	if inPeak && peakMaxSliceGB > 0 {
 		sliceUsed := s.UsedTrafficGB - sliceStartTrafficGB
+		if s.UsedTrafficGB < sliceStartTrafficGB {
+			sliceUsed = s.UsedTrafficGB
+		}
+		if sliceUsed < 0 {
+			sliceUsed = 0
+		}
 		if sliceUsed >= peakMaxSliceGB {
 			return true, fmt.Sprintf("高峰单班流量已达 %.1f / %.1f GB 上限，自动切换下一台", sliceUsed, peakMaxSliceGB)
 		}
@@ -511,6 +517,9 @@ func BuildDailySchedule(pool domain.PoolConfig, servers []domain.Server, now tim
 		}
 		if h == curHour && manualActive {
 			effID = pool.ManualServerID
+			if phase == "idle" {
+				phase = "manual"
+			}
 			source = "manual_live"
 		}
 
@@ -562,8 +571,10 @@ func BuildDailySchedule(pool domain.PoolConfig, servers []domain.Server, now tim
 	manualUntilStr := ""
 	manualRemainMins := 0
 	manualSrvName := ""
+	var activeManualServerID int64
 	if manualActive {
 		mode = "manual_live"
+		activeManualServerID = pool.ManualServerID
 		manualSrvName = nameByID[pool.ManualServerID]
 		if !pool.ManualUntil.IsZero() {
 			manualUntilStr = pool.ManualUntil.In(loc).Format("15:04")
@@ -595,7 +606,7 @@ func BuildDailySchedule(pool domain.PoolConfig, servers []domain.Server, now tim
 		ImbalanceGapPct:   imbalanceGapPct,
 		ActiveOverrideCnt: activeOverrideCnt,
 		AutoPeakSliceMins: autoPeakSliceMins,
-		ManualServerID:    pool.ManualServerID,
+		ManualServerID:    activeManualServerID,
 		ManualServerName:  manualSrvName,
 		ManualUntil:       manualUntilStr,
 		ManualRemainMins:  manualRemainMins,
@@ -632,19 +643,28 @@ func ComputeManualUntil(pool domain.PoolConfig, servers []domain.Server, now tim
 		tmpPool := pool
 		tmpPool.ManualServerID = 0
 		tmpPool.ManualUntil = time.Time{}
-		sched := BuildDailySchedule(tmpPool, servers, now)
+		schedToday := BuildDailySchedule(tmpPool, servers, now)
 		curHour := localNow.Hour()
-		curAutoID := sched.Hours[curHour].AutoServerID
-		curPhase := sched.Hours[curHour].Phase
+		curAutoID := schedToday.Hours[curHour].AutoServerID
+		curPhase := schedToday.Hours[curHour].Phase
 		y, m, d := localNow.Date()
+		var schedTomorrow *DailySchedule
 		for step := 1; step <= 24; step++ {
-			nextH := (curHour + step) % 24
+			dayAdd := 0
+			nextH := curHour + step
+			sched := &schedToday
+			if nextH >= 24 {
+				dayAdd = 1
+				nextH -= 24
+				if schedTomorrow == nil {
+					tomorrowStart := time.Date(y, m, d+1, 0, 0, 0, 0, loc)
+					s := BuildDailySchedule(tmpPool, servers, tomorrowStart)
+					schedTomorrow = &s
+				}
+				sched = schedTomorrow
+			}
 			slot := sched.Hours[nextH]
 			if slot.AutoServerID != curAutoID || slot.Phase != curPhase {
-				dayAdd := 0
-				if curHour+step >= 24 {
-					dayAdd = 1
-				}
 				return time.Date(y, m, d+dayAdd, nextH, 0, 0, 0, loc)
 			}
 		}

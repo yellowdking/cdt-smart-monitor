@@ -102,3 +102,49 @@ func TestStoreFailsOnWrongMasterKey(t *testing.T) {
 		t.Fatal("expected Open to fail when master.key cannot decrypt stored secrets")
 	}
 }
+
+func TestStoreOpenDefaultsAndNextIDs(t *testing.T) {
+	dir := t.TempDir()
+	// Simulate an older/partial state.json missing newer fields and with stale NextServerID/NextEventID.
+	partial := `{
+  "next_server_id": 2,
+  "next_event_id": 1,
+  "pool": {
+    "enabled": false
+  },
+  "servers": [
+    {"id": 2, "name": "hk-1"},
+    {"id": 7, "name": "jp-2"}
+  ],
+  "events": [
+    {"id": 42, "action": "init"}
+  ]
+}`
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(partial), 0600); err != nil {
+		t.Fatalf("write partial state.json failed: %v", err)
+	}
+
+	st, err := Open(dir)
+	if err != nil {
+		t.Fatalf("Open partial state failed: %v", err)
+	}
+	snap := st.SnapshotRaw()
+	if snap.Pool.Enabled {
+		t.Fatal("expected explicit pool.enabled=false to be preserved")
+	}
+	if snap.Pool.Timezone != "Asia/Shanghai" {
+		t.Fatalf("expected missing timezone to inherit default Asia/Shanghai, got %q", snap.Pool.Timezone)
+	}
+	if snap.Pool.PollIntervalMinutes != 5 || snap.Pool.DefaultMaxTrafficGB != 200 {
+		t.Fatalf("expected missing pool defaults to be populated, got %+v", snap.Pool)
+	}
+	if !snap.Notify.WeeklyReportEnabled {
+		t.Fatal("expected missing notify.weekly_report_enabled to inherit default true")
+	}
+	if snap.NextServerID != 8 {
+		t.Fatalf("expected NextServerID > max(existing IDs)=7, got %d", snap.NextServerID)
+	}
+	if snap.NextEventID != 43 {
+		t.Fatalf("expected NextEventID > max(existing event IDs)=42, got %d", snap.NextEventID)
+	}
+}

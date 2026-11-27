@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+data
+data/
+docs
+docs/
+*.md
+**/*.md
+*_test.go
+**/*_test.go
+.DS_Store
+Thumbs.db

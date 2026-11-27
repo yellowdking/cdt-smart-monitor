@@ -13,12 +13,61 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"cdt-smart-monitor/internal/domain"
 )
+
+var validRegionRe = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
+
+type aliyunAPIError struct {
+	Status  int
+	Code    string
+	Message string
+	Raw     string
+}
+
+func (e *aliyunAPIError) Error() string {
+	if e.Code != "" || e.Message != "" {
+		return fmt.Sprintf("aliyun API HTTP %d (%s): %s", e.Status, e.Code, e.Message)
+	}
+	return fmt.Sprintf("aliyun API HTTP %d: %s", e.Status, e.Raw)
+}
+
+func validateRegion(region string) error {
+	if !validRegionRe.MatchString(region) {
+		return fmt.Errorf("invalid aliyun region %q", region)
+	}
+	return nil
+}
+
+func isThrottlingCode(code string) bool {
+	c := strings.TrimSpace(code)
+	return c == "Throttling" ||
+		c == "Throttling.User" ||
+		c == "Throttling.API" ||
+		strings.HasPrefix(c, "Throttling.") ||
+		c == "FlowControl"
+}
+
+func isRetryableAliyunError(status int, err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if status == 0 || status == http.StatusTooManyRequests || status >= 500 {
+		return true
+	}
+	if status == http.StatusBadRequest || status == http.StatusForbidden {
+		var apiErr *aliyunAPIError
+		if errors.As(err, &apiErr) && isThrottlingCode(apiErr.Code) {
+			return true
+		}
+	}
+	return false
+}
 
 type Client struct {
 	httpClient     *http.Client
@@ -51,6 +100,9 @@ type InstanceSnapshot struct {
 
 // DescribeInstance fetches ECS instance status and primary public IPv4.
 func (c *Client) DescribeInstance(ctx context.Context, s domain.Server) (InstanceSnapshot, error) {
+	if err := validateRegion(s.Region); err != nil {
+		return InstanceSnapshot{Status: domain.StatusUnknown}, err
+	}
 	endpoint := c.ecsEndpointFn(s.Region)
 	idsJSON, err := json.Marshal([]string{s.InstanceID})
 	if err != nil {
@@ -95,6 +147,9 @@ func (c *Client) DescribeInstance(ctx context.Context, s domain.Server) (Instanc
 }
 
 func (c *Client) StartInstance(ctx context.Context, s domain.Server) error {
+	if err := validateRegion(s.Region); err != nil {
+		return err
+	}
 	endpoint := c.ecsEndpointFn(s.Region)
 	params := map[string]string{
 		"Action":     "StartInstance",
@@ -107,6 +162,9 @@ func (c *Client) StartInstance(ctx context.Context, s domain.Server) error {
 }
 
 func (c *Client) StopInstance(ctx context.Context, s domain.Server, stopMode string) error {
+	if err := validateRegion(s.Region); err != nil {
+		return err
+	}
 	if stopMode == "" {
 		stopMode = domain.StopModeStopCharging
 	}
@@ -190,7 +248,10 @@ func (c *Client) GetMonthlyBillUSD(ctx context.Context, s domain.Server, now tim
 		return 0, err
 	}
 	var resp struct {
-		Data struct {
+		Success *bool  `json:"Success"`
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+		Data    struct {
 			Items struct {
 				Item []struct {
 					PretaxAmount float64 `json:"PretaxAmount"`
@@ -200,6 +261,17 @@ func (c *Client) GetMonthlyBillUSD(ctx context.Context, s domain.Server, now tim
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return 0, err
+	}
+	if (resp.Success != nil && !*resp.Success) || (resp.Code != "" && !strings.EqualFold(resp.Code, "Success")) {
+		code := strings.TrimSpace(resp.Code)
+		if code == "" {
+			code = "UnknownError"
+		}
+		msg := strings.TrimSpace(resp.Message)
+		if msg == "" {
+			msg = "BSS API reported unsuccessful"
+		}
+		return 0, fmt.Errorf("aliyun BSS API error (%s): %s", code, msg)
 	}
 	var sum float64
 	for _, item := range resp.Data.Items.Item {
@@ -227,10 +299,7 @@ func (c *Client) doRPC(ctx context.Context, endpoint, akID, akSecret string, ext
 		}
 		lastErr = err
 
-		retryable := (status == 0 || status == http.StatusTooManyRequests || status >= 500) &&
-			!errors.Is(err, context.Canceled) &&
-			!errors.Is(err, context.DeadlineExceeded)
-		if !retryable || attempt == attempts {
+		if !isRetryableAliyunError(status, err) || attempt == attempts {
 			return nil, lastErr
 		}
 
@@ -306,9 +375,16 @@ func formatAliyunError(status int, raw []byte) error {
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(raw, &apiErr); err == nil && (apiErr.Code != "" || apiErr.Message != "") {
-		return fmt.Errorf("aliyun API HTTP %d (%s): %s", status, apiErr.Code, apiErr.Message)
+		return &aliyunAPIError{
+			Status:  status,
+			Code:    apiErr.Code,
+			Message: apiErr.Message,
+		}
 	}
-	return fmt.Errorf("aliyun API HTTP %d: %s", status, strings.TrimSpace(string(raw)))
+	return &aliyunAPIError{
+		Status: status,
+		Raw:    strings.TrimSpace(string(raw)),
+	}
 }
 
 func percentEncode(s string) string {

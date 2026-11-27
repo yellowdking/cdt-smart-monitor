@@ -5,30 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CDT Smart Monitor</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script id="tw-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei UI"', '"Microsoft YaHei"', '"Segoe UI"', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', '"Cascadia Mono"', '"SFMono-Regular"', 'Menlo', 'Consolas', '"Liberation Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
   <style>
     html {
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
     }
     :root {
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
       --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
     }
     body {
       font-family: var(--font-sans);
-      background-color: #FAFAFA;
+      background-color: #F1F5F9;
       color: #0F172A;
       letter-spacing: 0;
       -webkit-font-smoothing: auto;
       -moz-osx-font-smoothing: auto;
       text-rendering: auto;
       font-optical-sizing: auto;
-    }
-    @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
-      body {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
     }
     body .font-sans {
       font-family: var(--font-sans);
@@ -39,7 +45,7 @@
     }
     .tab-btn {
       color: #475569;
-      font-weight: 500;
+      font-weight: 400;
       border-bottom: 2px solid transparent;
       transition: color 0.15s ease, border-color 0.15s ease;
     }
@@ -50,11 +56,11 @@
       border-bottom-color: #0F172A;
     }
     .strategy-card {
-      border: 1px solid #E5E7EB;
+      border: 1px solid #CBD5E1;
       background: #FFFFFF;
       transition: border-color 0.15s ease, background-color 0.15s ease;
     }
-    .strategy-card:hover { border-color: #94A3B8; }
+    .strategy-card:hover { border-color: #64748B; }
     .strategy-card.selected {
       border-color: #0F172A;
       background: #F8FAFC;
@@ -62,105 +68,96 @@
     }
     .input-line {
       background: #FFFFFF;
-      border: 1px solid #E2E8F0;
+      border: 1px solid #CBD5E1;
       color: #0F172A;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
     }
     .input-line:focus {
       outline: none;
       border-color: #0F172A;
-      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
+    }
+    .select-compact {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='none' stroke='%23475569' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.625rem center;
+      background-size: 14px 14px;
+    }
+    .select-compact-tight {
+      background-position: right 0.5rem center;
+    }
+    select option {
+      font-size: 13px;
+      line-height: 20px;
+      color: #0F172A;
+      background-color: #FFFFFF;
+    }
+    select optgroup {
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      color: #475569;
     }
     .card-surface {
       background: #FFFFFF;
-      border: 1px solid #E5E7EB;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     }
     .server-card-normal {
       background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .server-card-normal:hover {
-      border-color: #94A3B8;
-      box-shadow: 0 10px 28px -14px rgba(15, 23, 42, 0.14);
-    }
-
-    /* Flowing luminous border for the active duty server card */
-    @property --glow-angle {
-      syntax: '<angle>';
-      initial-value: 0deg;
-      inherits: false;
-    }
-    @keyframes spin-glow {
-      to { --glow-angle: 360deg; }
+      border-color: #64748B;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     }
     .duty-glow-wrap {
-      position: relative;
-      isolation: isolate;
-      border-radius: 18px;
-      padding: 2px;
-      box-shadow: 0 12px 32px -14px rgba(79, 70, 229, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.08);
-      transition: box-shadow 0.2s ease;
-    }
-    .duty-glow-wrap::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      z-index: 0;
-      pointer-events: none;
-      background: conic-gradient(
-        from var(--glow-angle),
-        #E2E8F0 0deg,
-        #38BDF8 65deg,
-        #6366F1 125deg,
-        #10B981 185deg,
-        #E2E8F0 250deg,
-        #E2E8F0 360deg
-      );
-      animation: spin-glow 4.2s linear infinite;
+      background: #FFFFFF;
+      border: 2px solid #4F46E5;
+      border-radius: 16px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .duty-glow-wrap:hover {
-      box-shadow: 0 16px 36px -14px rgba(79, 70, 229, 0.34), 0 0 0 1px rgba(99, 102, 241, 0.14);
+      border-color: #3730A3;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
     }
     .duty-glow-inner {
-      position: relative;
-      z-index: 1;
       background: #FFFFFF;
-      border-radius: 16px;
+      border-radius: 14px;
       height: 100%;
     }
-    @keyframes pulse-dot {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-      60% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-    }
     .live-dot {
-      animation: pulse-dot 2s infinite;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.24);
     }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 9999px; }
   </style>
 </head>
 <body class="min-h-screen selection:bg-slate-900 selection:text-white">
-  <!-- Minimalist White Header -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <!-- Crisp White Header -->
+  <header class="bg-white border-b border-slate-300 sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
-      <div class="h-16 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold">
+      <div class="h-16 flex items-center justify-between gap-2 sm:gap-3">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-semibold">
             CDT
           </div>
-          <h1 class="text-sm sm:text-base font-semibold text-slate-900">CDT Smart Monitor</h1>
+          <h1 class="text-[13px] sm:text-base leading-5 sm:leading-6 font-semibold text-slate-900 truncate">CDT Smart Monitor</h1>
         </div>
-        <div class="flex items-center gap-2 text-xs sm:text-[13px]">
-          <span id="peakSplitBadge" class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs text-slate-700 font-medium whitespace-nowrap">加载中...</span>
-          <button type="button" id="openAddModalBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 font-medium transition">+ 添加节点</button>
-          <button type="button" id="refreshAllBtn" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition">全局同步</button>
-          <button type="button" id="logoutBtn" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-300 font-medium transition">退出</button>
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <span id="peakSplitBadge" class="hidden md:inline-flex items-center h-7 px-2.5 rounded-full border border-slate-300 bg-slate-50 text-xs leading-4 text-slate-700 whitespace-nowrap">加载中...</span>
+          <button type="button" id="openAddModalBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 font-semibold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+ 添加节点</button>
+          <button type="button" id="refreshAllBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-[13px] leading-4 sm:leading-5 font-semibold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">全局同步</button>
+          <button type="button" id="logoutBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">退出</button>
         </div>
       </div>
 
-      <nav class="flex items-center gap-6 overflow-x-auto -mb-px text-[13px] sm:text-sm">
+      <nav class="flex items-center gap-6 overflow-x-auto -mb-px text-sm leading-5">
         <button type="button" data-tab="servers" class="tab-btn active py-2.5 whitespace-nowrap">多机池与控制</button>
         <button type="button" data-tab="strategy" class="tab-btn py-2.5 whitespace-nowrap">智能轮换策略</button>
         <button type="button" data-tab="events" class="tab-btn py-2.5 whitespace-nowrap">动态排班与日志</button>
@@ -169,245 +166,271 @@
     </div>
   </header>
 
-  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg"></div>
+  <div id="toast" class="fixed bottom-5 right-5 z-[60] hidden px-4 py-2.5 rounded-xl text-sm leading-5 font-semibold shadow-lg"></div>
 
   <!-- Auth Gate Overlay -->
-  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-7 space-y-5 shadow-sm">
-      <div class="space-y-2">
-        <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs font-semibold">CDT</div>
-        <h2 id="authTitle" class="text-lg font-semibold text-slate-900">管理员登录</h2>
-        <p id="authSubtitle" class="text-[13px] text-slate-600 leading-relaxed">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
-      </div>
-      <form id="authForm" class="space-y-3.5">
-        <label class="block">
-          <span class="text-[13px] font-medium text-slate-700">管理员密码</span>
-          <input id="authPassword" type="password" required minlength="6" placeholder="至少 6 位密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
-        </label>
-        <label id="authConfirmWrap" class="hidden block">
-          <span class="text-[13px] font-medium text-slate-700">确认管理员密码</span>
-          <input id="authPasswordConfirm" type="password" minlength="6" placeholder="再次输入密码" class="input-line mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm" />
-        </label>
-        <button id="authSubmitBtn" type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">登录控制台</button>
-      </form>
-      <div id="passkeyLoginWrap" class="hidden pt-4 border-t border-slate-100 space-y-2">
-        <button type="button" id="passkeyLoginBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 text-sm font-medium transition">使用 Passkey 通行密钥登录</button>
-        <p class="text-xs text-slate-600 leading-relaxed text-center">支持 Face ID / Touch ID / Windows Hello（需 HTTPS）</p>
+  <div id="authGate" class="fixed inset-0 z-40 hidden bg-slate-100 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4">
+      <div class="w-full max-w-sm bg-white border border-slate-300 rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm">
+        <div class="space-y-2">
+          <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-semibold">CDT</div>
+          <h2 id="authTitle" class="text-lg leading-7 font-semibold text-slate-900">管理员登录</h2>
+          <p id="authSubtitle" class="text-sm leading-5 text-slate-700">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
+        </div>
+        <form id="authForm" class="space-y-3.5">
+          <label class="block">
+            <span class="text-[13px] leading-5 text-slate-700">管理员密码</span>
+            <input id="authPassword" type="password" required minlength="6" autocomplete="current-password" placeholder="至少 6 位密码" class="input-line mt-1.5 w-full h-10 rounded-xl px-3.5 text-sm leading-5" />
+          </label>
+          <label id="authConfirmWrap" class="hidden block">
+            <span class="text-[13px] leading-5 text-slate-700">确认管理员密码</span>
+            <input id="authPasswordConfirm" type="password" minlength="6" autocomplete="new-password" placeholder="再次输入密码" class="input-line mt-1.5 w-full h-10 rounded-xl px-3.5 text-sm leading-5" />
+          </label>
+          <button id="authSubmitBtn" type="submit" class="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">登录控制台</button>
+        </form>
+        <div id="passkeyLoginWrap" class="hidden pt-4 border-t border-slate-200 space-y-2">
+          <button type="button" id="passkeyLoginBtn" class="w-full h-10 rounded-xl bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">使用 Passkey 通行密钥登录</button>
+          <p class="text-xs leading-4 text-slate-600 text-center">支持 Face ID / Touch ID / Windows Hello（需 HTTPS）</p>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Modal 1: Server Detail & Edit (triggered by clicking a server card) -->
-  <div id="serverModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
-    <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
-      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 id="modalTitle" class="text-base font-semibold text-slate-900">节点详情与密钥配置</h3>
-          <p id="modalSyncTime" class="text-xs text-slate-600 font-mono-num mt-0.5"></p>
+  <div id="serverModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" class="fixed inset-0 z-40 hidden bg-slate-900/40 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4" data-modal-backdrop="serverModal">
+      <div class="w-full max-w-lg bg-white border border-slate-300 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <h3 id="modalTitle" class="text-base leading-6 font-semibold text-slate-900 truncate">节点详情与密钥配置</h3>
+            <p id="modalSyncTime" class="text-xs leading-4 text-slate-600 font-mono-num mt-0.5 truncate"></p>
+          </div>
+          <button type="button" id="closeServerModal" aria-label="关闭" class="w-8 h-8 shrink-0 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center text-base leading-none transition-colors">&times;</button>
         </div>
-        <button type="button" id="closeServerModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
+        <form id="editServerForm" class="p-6 space-y-4">
+          <input type="hidden" id="eId" />
+          <!-- Read-only quick copy bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-300 text-xs leading-4">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0 truncate">
+                <div class="text-xs leading-4 text-slate-600">公网 IP</div>
+                <div id="ePublicIP" class="text-[13px] leading-5 font-mono-num text-slate-900 font-semibold truncate">—</div>
+              </div>
+              <button type="button" id="copyIPBtn" class="shrink-0 h-7 px-2 rounded-md bg-white border border-slate-300 hover:border-slate-500 text-xs leading-4 text-slate-700 transition-colors">复制</button>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0 truncate">
+                <div class="text-xs leading-4 text-slate-600">实例 ID</div>
+                <div id="eInstDisplay" class="text-[13px] leading-5 font-mono-num text-slate-900 font-semibold truncate">—</div>
+              </div>
+              <button type="button" id="copyInstBtn" class="shrink-0 h-7 px-2 rounded-md bg-white border border-slate-300 hover:border-slate-500 text-xs leading-4 text-slate-700 transition-colors">复制</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">节点名称</span>
+              <input id="eName" required class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">站点类型</span>
+              <select id="eSite" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5">
+                <option value="intl">阿里云国际站 (USD)</option>
+                <option value="china">阿里云中国站 (CNY)</option>
+              </select>
+            </label>
+            <div class="block">
+              <label for="eRegionTrigger" class="block text-xs leading-4 text-slate-700">地域 (RegionId)</label>
+              <input type="hidden" id="eRegion" value="cn-hongkong" />
+              <button type="button" id="eRegionTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="regionComboboxPortal" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 flex items-center justify-between gap-2 text-left cursor-pointer">
+                <span class="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden">
+                  <span data-region-name class="truncate text-slate-900">中国香港</span>
+                  <span data-region-code class="font-mono-num text-[11px] leading-4 text-slate-600 truncate">cn-hongkong</span>
+                </span>
+                <svg data-region-chevron class="w-3.5 h-3.5 text-slate-600 shrink-0 transition-transform" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
+              </button>
+            </div>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">实例 ID</span>
+              <input id="eInstanceID" required class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">AccessKey ID</span>
+              <input id="eAkID" required class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">AccessKey Secret（留空不修改）</span>
+              <input id="eAkSecret" type="password" autocomplete="off" placeholder="********" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">流量上限 (GB)</span>
+              <input id="eMaxGB" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span id="eMaxCostLabel" class="block text-xs leading-4 text-slate-700">金额上限 ($)</span>
+              <input id="eMaxUSD" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+          </div>
+
+          <label class="inline-flex items-start gap-2 text-[13px] leading-5 text-slate-700 cursor-pointer">
+            <input id="eKeepAlive" type="checkbox" class="w-4 h-4 mt-0.5 accent-slate-900 rounded shrink-0" />
+            <span>启用抢占式实例保活（当班被抢占停机自动拉起，连续失败 3 次故障转移）</span>
+          </label>
+
+          <div class="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+            <button type="button" id="modalDeleteBtn" class="h-9 px-3 rounded-xl text-[13px] leading-5 font-semibold text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">移出并删除节点</button>
+            <div class="flex gap-2">
+              <button type="button" id="cancelServerModal" class="h-9 px-4 rounded-xl border border-slate-300 text-[13px] leading-5 text-slate-700 hover:bg-slate-100 transition-colors">取消</button>
+              <button type="submit" id="saveServerBtn" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">保存修改</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <form id="editServerForm" class="p-6 space-y-4">
-        <input type="hidden" id="eId" />
-        <!-- Read-only quick copy bar -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
-          <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0 truncate">
-              <div class="text-xs font-medium text-slate-600">公网 IP</div>
-              <div id="ePublicIP" class="text-[13px] font-mono-num text-slate-900 font-medium truncate">—</div>
-            </div>
-            <button type="button" id="copyIPBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-xs font-medium text-slate-700">复制</button>
-          </div>
-          <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0 truncate">
-              <div class="text-xs font-medium text-slate-600">实例 ID</div>
-              <div id="eInstDisplay" class="text-[13px] font-mono-num text-slate-900 font-medium truncate">—</div>
-            </div>
-            <button type="button" id="copyInstBtn" class="shrink-0 px-2 py-1 rounded-md bg-white border border-slate-200 hover:border-slate-400 text-xs font-medium text-slate-700">复制</button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">节点名称</span>
-            <input id="eName" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">站点类型</span>
-            <select id="eSite" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
-              <option value="intl">阿里云国际站 (USD)</option>
-              <option value="china">阿里云中国站 (CNY)</option>
-            </select>
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
-            <select id="eRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
-              <option value="cn-hongkong" selected>中国香港 (cn-hongkong)</option>
-            </select>
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">实例 ID</span>
-            <input id="eInstanceID" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">AccessKey ID</span>
-            <input id="eAkID" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">AccessKey Secret（留空不修改）</span>
-            <input id="eAkSecret" type="password" placeholder="********" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">流量上限 (GB)</span>
-            <input id="eMaxGB" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">金额上限 ($)</span>
-            <input id="eMaxUSD" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
-          <input id="eKeepAlive" type="checkbox" class="w-4 h-4 accent-slate-900 rounded" />
-          <span>启用抢占式实例保活（当班被抢占停机自动拉起，连续失败 3 次故障转移）</span>
-        </label>
-
-        <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-          <button type="button" id="modalDeleteBtn" class="px-3 py-2 rounded-xl text-[13px] font-medium text-rose-600 hover:bg-rose-50 transition">移出并删除节点</button>
-          <div class="flex gap-2">
-            <button type="button" id="cancelServerModal" class="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">取消</button>
-            <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium transition">保存修改</button>
-          </div>
-        </div>
-      </form>
     </div>
   </div>
 
   <!-- Modal 2: Add New Server -->
-  <div id="addModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
-    <div class="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
-      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 class="text-base font-semibold text-slate-900">添加阿里云 ECS 实例</h3>
-          <p class="text-xs text-slate-600 mt-0.5">AccessKey Secret 将在服务端以 AES-256-GCM 加密存储。</p>
+  <div id="addModal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle" class="fixed inset-0 z-40 hidden bg-slate-900/40 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4" data-modal-backdrop="addModal">
+      <div class="w-full max-w-lg bg-white border border-slate-300 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
+          <div>
+            <h3 id="addModalTitle" class="text-base leading-6 font-semibold text-slate-900">添加阿里云 ECS 实例</h3>
+            <p class="text-xs leading-4 text-slate-600 mt-0.5">AccessKey Secret 将在服务端以 AES-256-GCM 加密存储。</p>
+          </div>
+          <button type="button" id="closeAddModal" aria-label="关闭" class="w-8 h-8 shrink-0 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center text-base leading-none transition-colors">&times;</button>
         </div>
-        <button type="button" id="closeAddModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
+        <form id="addServerForm" class="p-6 space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">节点名称</span>
+              <input id="fName" required placeholder="如 hk1" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">站点类型</span>
+              <select id="fSite" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5">
+                <option value="intl">阿里云国际站 (USD)</option>
+                <option value="china">阿里云中国站 (CNY)</option>
+              </select>
+            </label>
+            <div class="block">
+              <label for="fRegionTrigger" class="block text-xs leading-4 text-slate-700">地域 (RegionId)</label>
+              <input type="hidden" id="fRegion" value="cn-hongkong" />
+              <button type="button" id="fRegionTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="regionComboboxPortal" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 flex items-center justify-between gap-2 text-left cursor-pointer">
+                <span class="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden">
+                  <span data-region-name class="truncate text-slate-900">中国香港</span>
+                  <span data-region-code class="font-mono-num text-[11px] leading-4 text-slate-600 truncate">cn-hongkong</span>
+                </span>
+                <svg data-region-chevron class="w-3.5 h-3.5 text-slate-600 shrink-0 transition-transform" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
+              </button>
+            </div>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">实例 ID</span>
+              <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">AccessKey ID</span>
+              <input id="fAkID" required placeholder="LTAI5t..." class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">AccessKey Secret</span>
+              <input id="fAkSecret" type="password" required autocomplete="off" placeholder="输入 RAM Secret" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5" />
+            </label>
+            <label class="block">
+              <span class="block text-xs leading-4 text-slate-700">流量上限 (GB)</span>
+              <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span id="fMaxCostLabel" class="block text-xs leading-4 text-slate-700">金额上限 ($)</span>
+              <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+          </div>
+          <label class="inline-flex items-center gap-2 text-[13px] leading-5 text-slate-700 cursor-pointer">
+            <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-slate-900 rounded" />
+            <span>启用抢占式实例保活</span>
+          </label>
+          <div class="pt-3 border-t border-slate-200 flex justify-end gap-2">
+            <button type="button" id="cancelAddModal" class="h-9 px-4 rounded-xl border border-slate-300 text-[13px] leading-5 text-slate-700 hover:bg-slate-100 transition-colors">取消</button>
+            <button type="submit" id="addServerSubmitBtn" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">加入轮换池</button>
+          </div>
+        </form>
       </div>
-      <form id="addServerForm" class="p-6 space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">节点名称</span>
-            <input id="fName" required placeholder="如 hk1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">站点类型</span>
-            <select id="fSite" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
-              <option value="intl">阿里云国际站 (USD)</option>
-              <option value="china">阿里云中国站 (CNY)</option>
-            </select>
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">地域 (RegionId)</span>
-            <select id="fRegion" required class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
-              <option value="cn-hongkong" selected>中国香港 (cn-hongkong)</option>
-            </select>
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">实例 ID</span>
-            <input id="fInstanceID" required placeholder="i-xxxxxxxxxxxx" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">AccessKey ID</span>
-            <input id="fAkID" required placeholder="LTAI5t..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">AccessKey Secret</span>
-            <input id="fAkSecret" type="password" required placeholder="输入 RAM Secret" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">流量上限 (GB)</span>
-            <input id="fMaxGB" type="number" min="10" max="2000" step="5" value="200" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-          <label class="block">
-            <span class="text-xs font-medium text-slate-700">金额上限 ($)</span>
-            <input id="fMaxUSD" type="number" min="0.1" max="50" step="0.05" value="0.50" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-          </label>
-        </div>
-        <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
-          <input id="fKeepAlive" type="checkbox" checked class="w-4 h-4 accent-slate-900 rounded" />
-          <span>启用抢占式实例保活</span>
-        </label>
-        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2">
-          <button type="button" id="cancelAddModal" class="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 hover:bg-slate-50">取消</button>
-          <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium transition">加入轮换池</button>
-        </div>
-      </form>
     </div>
   </div>
 
   <!-- Modal 3: Edit Hourly Schedule Slot (triggered by clicking any cell in 24h Gantt) -->
-  <div id="slotModal" class="fixed inset-0 z-40 hidden bg-slate-900/35 flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
-      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 id="slotModalTitle" class="text-base font-semibold text-slate-900">修改排班时段</h3>
-          <p id="slotModalSub" class="text-[13px] text-slate-600 mt-0.5">智能推荐：—</p>
-        </div>
-        <button type="button" id="closeSlotModal" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-lg">&times;</button>
-      </div>
-      <div class="p-6 space-y-4">
-        <input type="hidden" id="slotModalHour" />
-        <div class="space-y-1.5">
-          <div class="text-[13px] font-medium text-slate-700">生效范围</div>
-          <div id="slotScopeBtns" class="flex flex-wrap gap-1.5 text-xs">
-            <button type="button" data-scope="1" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-900 bg-slate-900 text-white font-medium">仅本小时</button>
-            <button type="button" data-scope="2" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">连续 2 小时</button>
-            <button type="button" data-scope="3" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">连续 3 小时</button>
-            <button type="button" data-scope="peak" class="slot-scope-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-slate-400">整个高峰时段</button>
+  <div id="slotModal" role="dialog" aria-modal="true" aria-labelledby="slotModalTitle" class="fixed inset-0 z-40 hidden bg-slate-900/40 overflow-y-auto">
+    <div class="min-h-full flex items-center justify-center p-4" data-modal-backdrop="slotModal">
+      <div class="w-full max-w-md bg-white border border-slate-300 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
+          <div>
+            <h3 id="slotModalTitle" class="text-base leading-6 font-semibold text-slate-900">修改排班时段</h3>
+            <p id="slotModalSub" class="text-[13px] leading-5 text-slate-600 mt-0.5">智能推荐：—</p>
           </div>
+          <button type="button" id="closeSlotModal" aria-label="关闭" class="w-8 h-8 shrink-0 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center text-base leading-none transition-colors">&times;</button>
         </div>
-        <div class="space-y-2">
-          <div class="text-[13px] font-medium text-slate-700">选择该时段的值班方式</div>
-          <div id="slotTargetList" class="grid grid-cols-1 gap-2"></div>
+        <div class="p-6 space-y-4">
+          <input type="hidden" id="slotModalHour" />
+          <div class="space-y-1.5">
+            <div class="text-[13px] leading-5 font-semibold text-slate-800">生效范围</div>
+            <div id="slotScopeBtns" class="flex flex-wrap gap-1.5 text-xs leading-4">
+              <button type="button" data-scope="1" class="slot-scope-btn h-8 px-2.5 rounded-lg border border-slate-900 bg-slate-900 text-white font-semibold transition-colors">仅本小时</button>
+              <button type="button" data-scope="2" class="slot-scope-btn h-8 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:border-slate-500 transition-colors">连续 2 小时</button>
+              <button type="button" data-scope="3" class="slot-scope-btn h-8 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:border-slate-500 transition-colors">连续 3 小时</button>
+              <button type="button" data-scope="peak" class="slot-scope-btn h-8 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:border-slate-500 transition-colors">整个高峰时段</button>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="text-[13px] leading-5 font-semibold text-slate-800">选择该时段的值班方式</div>
+            <div id="slotTargetList" class="grid grid-cols-1 gap-2"></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-7 space-y-6">
+  <!-- Body-level fixed portal for searchable Region combobox -->
+  <div id="regionComboboxPortal" class="fixed z-50 hidden bg-white border border-slate-300 rounded-xl shadow-lg overflow-hidden">
+    <div class="p-2 border-b border-slate-200 bg-slate-50">
+      <input id="regionComboboxSearch" type="text" autocomplete="off" spellcheck="false" placeholder="搜索地域或 RegionId..." class="input-line w-full h-8 rounded-lg px-2.5 text-[13px] leading-5" />
+    </div>
+    <div id="regionComboboxList" role="listbox" class="max-h-60 overflow-y-auto py-1"></div>
+  </div>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
     <!-- TAB 1: SERVERS -->
     <section id="tab-servers" class="tab-panel space-y-6">
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs text-slate-600 font-medium">池内健康节点</div>
-          <div id="kpiHealthy" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0 / 0</div>
+          <div class="text-xs leading-4 text-slate-700">池内健康节点</div>
+          <div id="kpiHealthy" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">0 / 0</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs text-slate-600 font-medium">当前当班节点</div>
-          <div id="kpiDuty" class="text-base font-semibold text-slate-900 mt-1.5 truncate">—</div>
+          <div class="text-xs leading-4 text-slate-700">当前当班节点</div>
+          <div id="kpiDuty" class="text-base leading-7 font-semibold text-slate-900 mt-1 truncate">—</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs text-slate-600 font-medium">累计已用流量</div>
-          <div id="kpiTraffic" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">0.0 GB</div>
+          <div class="text-xs leading-4 text-slate-700">累计已用流量</div>
+          <div id="kpiTraffic" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">0.0 GB</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs text-slate-600 font-medium">累计本月费用</div>
-          <div id="kpiCost" class="font-mono-num text-xl font-semibold text-slate-900 mt-1">$0.000</div>
+          <div class="text-xs leading-4 text-slate-700">累计本月费用</div>
+          <div id="kpiCost" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">$0.000</div>
         </div>
       </div>
 
       <!-- Mihomo-style Duty Mode Switcher (Auto / Manual + Auto-Revert + One-Click Back to Smart Auto) -->
-      <div class="card-surface rounded-2xl p-4 sm:p-5 space-y-3.5">
+      <div class="card-surface rounded-2xl p-4 sm:p-5 space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2.5">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-semibold text-slate-900">当班调度模式</span>
-            <span id="dutyModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">⚡ 智能排班运行中</span>
-            <span id="balanceScoreBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-slate-200 bg-slate-50 text-slate-600">均衡度 100%</span>
+            <span class="text-sm leading-5 font-semibold text-slate-900">当班调度模式</span>
+            <span id="dutyModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs leading-4 border border-emerald-300 bg-emerald-50 text-emerald-800">⚡ 智能排班运行中</span>
+            <span id="balanceScoreBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs leading-4 font-mono-num border border-slate-300 bg-slate-50 text-slate-700">均衡度 100%</span>
           </div>
-          <div class="flex flex-wrap items-center gap-2 text-xs">
-            <label class="inline-flex items-center gap-1.5 text-slate-600 font-medium">
+          <div class="flex flex-wrap items-center gap-2 text-xs leading-4">
+            <label class="inline-flex items-center gap-1.5 text-slate-700">
               <span>自动切回</span>
-              <select id="quickRevertSelect" class="input-line rounded-lg px-2 py-1 text-[13px]">
+              <select id="quickRevertSelect" class="input-line select-compact select-compact-tight rounded-lg h-8 pl-2.5 pr-7 text-[13px] leading-5">
                 <option value="next_slot">下个排班槽位</option>
                 <option value="duration:60">1 小时后</option>
                 <option value="duration:120">2 小时后</option>
@@ -416,16 +439,16 @@
                 <option value="never">保持手动</option>
               </select>
             </label>
-            <button type="button" id="returnAutoBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition">⚡ 一键回到智能排班</button>
+            <button type="button" id="returnAutoBtn" class="h-8 px-3 rounded-lg text-xs leading-4 border whitespace-nowrap inline-flex items-center transition-colors">⚡ 一键回到智能排班</button>
           </div>
         </div>
         <div id="dutySelectorPills" class="flex flex-wrap items-center gap-2"></div>
       </div>
 
       <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-slate-900">实例列表</h2>
-          <span class="text-xs text-slate-600">点击任意卡片查看 IP / 实例 ID 与编辑密钥</span>
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm leading-5 font-semibold text-slate-900">实例列表</h2>
+          <span class="text-xs leading-4 text-slate-600">点击任意卡片查看 IP / 实例 ID 与编辑密钥</span>
         </div>
         <div id="serversGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
@@ -435,113 +458,113 @@
     <section id="tab-strategy" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class="lg:col-span-7 space-y-5">
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
-          <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start justify-between gap-3">
             <div>
-              <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">01 · 使用时段</span>
-              <h2 class="text-base font-semibold text-slate-900 mt-0.5">每日活跃使用时段</h2>
-              <p class="text-[13px] text-slate-600 leading-relaxed mt-1">非使用时段自动对全池执行集体节省停机（StopCharging）。</p>
+              <span class="text-xs leading-4 font-mono-num text-slate-600">01 · 使用时段</span>
+              <h2 class="text-base leading-6 font-semibold text-slate-900 mt-0.5">每日活跃使用时段</h2>
+              <p class="text-sm leading-5 text-slate-700 mt-1">非使用时段自动对全池执行集体节省停机（StopCharging）。</p>
             </div>
-            <label class="inline-flex items-center gap-2 text-[13px] font-medium text-slate-700 cursor-pointer">
+            <label class="inline-flex items-center gap-2 text-[13px] leading-5 text-slate-800 cursor-pointer shrink-0">
               <input id="pEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
               启用智能轮换
             </label>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">开始时间</span>
-              <select id="pActiveStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+              <span class="block text-[13px] leading-5 text-slate-700">开始时间</span>
+              <select id="pActiveStart" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5 font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">结束时间</span>
-              <select id="pActiveEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+              <span class="block text-[13px] leading-5 text-slate-700">结束时间</span>
+              <select id="pActiveEnd" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5 font-mono-num"></select>
             </label>
           </div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">02 · 高峰期动态均衡</span>
-            <h2 class="text-base font-semibold text-slate-900 mt-0.5">高峰时段与单班突发上限</h2>
-            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">按健康机器数自动均分时长，每日自动互换槽位，余量差 ≥ 20% 自动纠偏顶班。</p>
+            <span class="text-xs leading-4 font-mono-num text-slate-600">02 · 高峰期动态均衡</span>
+            <h2 class="text-base leading-6 font-semibold text-slate-900 mt-0.5">高峰时段与单班突发上限</h2>
+            <p class="text-sm leading-5 text-slate-700 mt-1">按健康机器数自动均分时长，每日自动互换槽位，余量差 ≥ 20% 自动纠偏顶班。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">高峰开始</span>
-              <select id="pPeakStart" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+              <span class="block text-[13px] leading-5 text-slate-700">高峰开始</span>
+              <select id="pPeakStart" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5 font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">高峰结束</span>
-              <select id="pPeakEnd" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num"></select>
+              <span class="block text-[13px] leading-5 text-slate-700">高峰结束</span>
+              <select id="pPeakEnd" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5 font-mono-num"></select>
             </label>
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">单班突发上限 (GB)</span>
-              <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+              <span class="block text-[13px] leading-5 text-slate-700">单班突发上限 (GB)</span>
+              <input id="pPeakBurst" type="number" min="0" max="200" step="1" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
             </label>
           </div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">03 · 轮换风格</span>
-            <h2 class="text-base font-semibold text-slate-900 mt-0.5">选择多机轮换模式</h2>
+            <span class="text-xs leading-4 font-mono-num text-slate-600">03 · 轮换风格</span>
+            <h2 class="text-base leading-6 font-semibold text-slate-900 mt-0.5">选择多机轮换模式</h2>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button type="button" data-strategy="smart_hybrid" class="strategy-card text-left p-4 rounded-xl">
-              <div class="text-sm font-semibold text-slate-900">智能高峰均衡</div>
-              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">闲时集体关机，高峰按机数自动均分与动态纠偏。</p>
+              <div class="text-sm leading-5 font-semibold text-slate-900">智能高峰均衡</div>
+              <p class="text-[13px] leading-5 text-slate-700 mt-1.5">闲时集体关机，高峰按机数自动均分与动态纠偏。</p>
             </button>
             <button type="button" data-strategy="exhaust_sequential" class="strategy-card text-left p-4 rounded-xl">
-              <div class="text-sm font-semibold text-slate-900">顺序榨干接力</div>
-              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">单机持续运行至触及流量或金额线再无缝接力。</p>
+              <div class="text-sm leading-5 font-semibold text-slate-900">顺序榨干接力</div>
+              <p class="text-[13px] leading-5 text-slate-700 mt-1.5">单机持续运行至触及流量或金额线再无缝接力。</p>
             </button>
             <button type="button" data-strategy="continuous_round_robin" class="strategy-card text-left p-4 rounded-xl">
-              <div class="text-sm font-semibold text-slate-900">持续均摊轮换</div>
-              <p class="text-[13px] text-slate-600 mt-1.5 leading-relaxed">全活跃时段按余量健康度持续均匀轮流上岗。</p>
+              <div class="text-sm leading-5 font-semibold text-slate-900">持续均摊轮换</div>
+              <p class="text-[13px] leading-5 text-slate-700 mt-1.5">全活跃时段按余量健康度持续均匀轮流上岗。</p>
             </button>
           </div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
           <div>
-            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">04 · 默认双上限</span>
-            <h2 class="text-base font-semibold text-slate-900 mt-0.5">单机默认流量与金额上限</h2>
-            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">系统内部统一预留 30GB 流量安全垫与 $0.05 金额安全垫。</p>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">默认流量上限 (GB)</span>
-              <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-            </label>
-            <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">默认金额上限 ($)</span>
-              <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
-            </label>
-          </div>
-        </div>
-
-        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
-          <div>
-            <span class="text-xs font-mono-num font-medium tracking-normal text-slate-600">05 · 手动接管与自动切回</span>
-            <h2 class="text-base font-semibold text-slate-900 mt-0.5">自动切回智能排班规则</h2>
-            <p class="text-[13px] text-slate-600 leading-relaxed mt-1">类似 Mihomo 的「自动选择 / 手动选择」：手动切换当班机器后，可按规则自动切回智能均衡排班；触及安全线始终自动兜底。</p>
+            <span class="text-xs leading-4 font-mono-num text-slate-600">04 · 默认双上限</span>
+            <h2 class="text-base leading-6 font-semibold text-slate-900 mt-0.5">单机默认流量与金额上限</h2>
+            <p class="text-sm leading-5 text-slate-700 mt-1">系统内部统一预留 30GB 流量安全垫与 $0.05 金额安全垫。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">手动选机后自动切回策略</span>
-              <select id="pRevertMode" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm">
-                <option value="next_slot">下一个排班槽位切换时自动切回（推荐）</option>
+              <span class="block text-[13px] leading-5 text-slate-700">默认流量上限 (GB)</span>
+              <input id="pMaxTraffic" type="number" min="10" max="2000" step="5" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+            <label class="block">
+              <span class="block text-[13px] leading-5 text-slate-700">默认金额上限 ($)</span>
+              <input id="pMaxCost" type="number" min="0.1" max="50" step="0.05" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
+            </label>
+          </div>
+        </div>
+
+        <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div>
+            <span class="text-xs leading-4 font-mono-num text-slate-600">05 · 手动接管与自动切回</span>
+            <h2 class="text-base leading-6 font-semibold text-slate-900 mt-0.5">自动切回智能排班规则</h2>
+            <p class="text-sm leading-5 text-slate-700 mt-1">类似 Mihomo 的「自动选择 / 手动选择」：手动切换当班机器后，可按规则自动切回智能均衡排班；触及安全线始终自动兜底。</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label class="block">
+              <span class="block text-[13px] leading-5 text-slate-700">手动选机后自动切回策略</span>
+              <select id="pRevertMode" class="input-line select-compact mt-1 w-full h-9 rounded-xl pl-3 pr-8 text-[13px] leading-5">
+                <option value="next_slot">下个排班槽位切换时切回（推荐）</option>
                 <option value="duration">固定时长后自动切回</option>
                 <option value="next_day">次日 00:00 自动切回</option>
-                <option value="never">保持手动（直到一键切回智能排班）</option>
+                <option value="never">保持手动（直到一键切回）</option>
               </select>
             </label>
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">固定切回时长（分钟，仅固定时长模式）</span>
-              <input id="pRevertMins" type="number" min="15" max="1440" step="15" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+              <span class="block text-[13px] leading-5 text-slate-700">固定切回时长（分钟，仅固定时长模式）</span>
+              <input id="pRevertMins" type="number" min="15" max="1440" step="15" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
             </label>
           </div>
-          <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
-            <input id="pOverridesAutoReset" type="checkbox" class="w-4 h-4 accent-slate-900 rounded" />
+          <label class="inline-flex items-start gap-2 text-[13px] leading-5 text-slate-700 cursor-pointer">
+            <input id="pOverridesAutoReset" type="checkbox" class="w-4 h-4 mt-0.5 accent-slate-900 rounded shrink-0" />
             <span>24 小时排班表的手动修改在 <strong>次日 00:00 自动清空并恢复智能排班</strong></span>
           </label>
         </div>
@@ -549,14 +572,14 @@
 
       <div class="lg:col-span-5">
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 sticky top-28">
-          <h3 class="text-sm font-semibold text-slate-900">内置风控与动态均衡引擎</h3>
-          <div class="divide-y divide-slate-100 text-[13px] text-slate-700 leading-relaxed">
+          <h3 class="text-sm leading-5 font-semibold text-slate-900">内置风控与动态均衡引擎</h3>
+          <div class="divide-y divide-slate-200 text-sm leading-6 text-slate-700">
             <div class="py-3 first:pt-0">
               <div class="font-semibold text-slate-900 mb-0.5">内置安全缓冲保护（最高优先级）</div>
               系统会在设定的流量上限与费用上限前自动预留安全缓冲（以抵御云端统计与出账延迟），到达保护线即自动停机锁定，即使处于手动值班模式也强制兜底生效。
             </div>
             <div class="py-3">
-              <div class="font-semibold text-amber-700 mb-0.5">高峰单班突发上限优先</div>
+              <div class="font-semibold text-amber-800 mb-0.5">高峰单班突发上限优先</div>
               高峰时段内，单班突发上限优先级高于全局单次刷新增幅限制，并自动防抖避免同槽位反复切回。
             </div>
             <div class="py-3">
@@ -568,9 +591,9 @@
               既可像 Mihomo 一样随时点选任意机器即时接管，也可点击 24 小时排班格精确指定某小时节点或强制休眠，并支持自动/一键回到智能排班。
             </div>
           </div>
-          <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
-            <button type="button" id="savePoolBtn" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存智能策略</button>
-            <button type="button" id="saveAndSyncLimitsBtn" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-[13px] font-medium border border-slate-300 transition">保存并同步双上限至全池</button>
+          <div class="flex flex-col gap-2 pt-3 border-t border-slate-200">
+            <button type="button" id="savePoolBtn" class="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">保存智能策略</button>
+            <button type="button" id="saveAndSyncLimitsBtn" class="w-full h-10 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-[13px] leading-5 font-semibold border border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">保存并同步双上限至全池</button>
           </div>
         </div>
       </div>
@@ -581,23 +604,23 @@
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2.5">
           <div>
-            <h2 class="text-sm font-semibold text-slate-900">今日 24 小时动态排班表</h2>
-            <p class="text-[13px] text-slate-600 mt-0.5">点击任意小时格子即可手动指定值班节点、强制休眠或恢复智能排班。</p>
+            <h2 class="text-sm leading-5 font-semibold text-slate-900">今日 24 小时动态排班表</h2>
+            <p class="text-sm leading-5 text-slate-700 mt-0.5">点击任意小时格子即可手动指定值班节点、强制休眠或恢复智能排班。</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <span id="ganttModeBadge" class="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-700 font-medium">动态均衡</span>
-            <button type="button" id="resetAllScheduleBtn" class="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-800 transition">⚡ 全部恢复智能排班</button>
+            <span id="ganttModeBadge" class="text-xs leading-4 px-2.5 py-1 rounded-full border border-slate-300 bg-slate-50 text-slate-700">动态均衡</span>
+            <button type="button" id="resetAllScheduleBtn" class="h-8 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs leading-4 font-semibold text-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">⚡ 全部恢复智能排班</button>
           </div>
         </div>
-        <div id="serverLoadStrip" class="flex flex-wrap gap-2 text-xs"></div>
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 font-medium">
+        <div id="serverLoadStrip" class="flex flex-wrap gap-2 text-xs leading-4"></div>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs leading-4 text-slate-700">
           <div class="flex flex-wrap gap-4">
-            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>休眠停机</span>
-            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200"></span>平峰均衡</span>
-            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-300"></span>高峰加权</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-300"></span>休眠停机</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-300"></span>平峰均衡</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-400"></span>高峰加权</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-indigo-50 border border-indigo-400"></span>手动修改</span>
           </div>
-          <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-700">
+          <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-800">
             <input id="ganttAutoResetDaily" type="checkbox" class="w-3.5 h-3.5 accent-slate-900 rounded" />
             <span>次日 00:00 自动恢复智能排班</span>
           </label>
@@ -606,108 +629,114 @@
       </div>
 
       <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3">
-        <h2 class="text-sm font-semibold text-slate-900">实时调度与操作日志</h2>
-        <div id="eventsList" class="divide-y divide-slate-100 max-h-[480px] overflow-y-auto text-[13px] leading-5"></div>
+        <h2 class="text-sm leading-5 font-semibold text-slate-900">实时调度与操作日志</h2>
+        <div id="eventsList" class="divide-y divide-slate-200 max-h-[480px] overflow-y-auto text-sm leading-5"></div>
       </div>
     </section>
 
     <!-- TAB 4: NOTIFY & SECURITY -->
     <section id="tab-notify" class="tab-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 h-fit">
-        <div class="pb-3 border-b border-slate-100">
-          <h2 class="text-sm font-semibold text-slate-900">通知渠道、代理与每周周报</h2>
-          <p class="text-[13px] text-slate-600 mt-0.5">支持 HTTP / HTTPS / SOCKS5 代理、Telegram 反代与每周一 08:00 定时周报。</p>
+      <div id="notifySettingsCard" class="card-surface rounded-2xl p-5 sm:p-6 space-y-4 h-fit">
+        <div class="pb-3 border-b border-slate-200">
+          <h2 class="text-sm leading-5 font-semibold text-slate-900">通知渠道、代理与每周周报</h2>
+          <p class="text-sm leading-5 text-slate-700 mt-0.5">支持 HTTP / HTTPS / SOCKS5 代理、Telegram 反代与每周一 08:00 定时周报。</p>
         </div>
         <div class="space-y-3">
           <label class="block">
-            <span class="text-[13px] font-medium text-slate-700">通知代理地址（留空直连）</span>
-            <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://ip:port" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            <span class="block text-[13px] leading-5 text-slate-700">通知代理地址（留空直连）</span>
+            <input id="nProxyURL" placeholder="如 socks5://172.17.0.1:7890 或 http://ip:port" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
           </label>
           <label class="block">
-            <span class="text-[13px] font-medium text-slate-700">Telegram API 反代地址（可选）</span>
-            <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+            <span class="block text-[13px] leading-5 text-slate-700">Telegram API 反代地址（可选）</span>
+            <input id="nTgApiBase" placeholder="如 https://tg-proxy.yourdomain.com" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
           </label>
         </div>
-        <div class="pt-2 border-t border-slate-100 space-y-3">
-          <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+        <div class="pt-3 border-t border-slate-200 space-y-3">
+          <label class="inline-flex items-center gap-2 text-sm leading-5 font-semibold text-slate-900 cursor-pointer">
             <input id="nTgEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
             启用 Telegram Bot 通知
           </label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">Bot Token</span>
-              <input id="nTgToken" type="password" placeholder="123456:ABC..." class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+              <span class="block text-[13px] leading-5 text-slate-700">Bot Token</span>
+              <input id="nTgToken" type="password" autocomplete="off" placeholder="123456:ABC..." class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
             </label>
             <label class="block">
-              <span class="text-[13px] font-medium text-slate-700">Chat ID</span>
-              <input id="nTgChat" placeholder="你的 Chat ID" class="input-line mt-1 w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+              <span class="block text-[13px] leading-5 text-slate-700">Chat ID</span>
+              <input id="nTgChat" placeholder="你的 Chat ID" class="input-line mt-1 w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
             </label>
           </div>
         </div>
-        <div class="pt-2 border-t border-slate-100 space-y-2.5">
-          <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+        <div class="pt-3 border-t border-slate-200 space-y-2.5">
+          <label class="inline-flex items-center gap-2 text-sm leading-5 font-semibold text-slate-900 cursor-pointer">
             <input id="nWhEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
             启用自定义 Webhook (POST JSON)
           </label>
-          <input id="nWhURL" placeholder="https://example.com/webhook" class="input-line w-full rounded-xl px-3 py-2 text-sm font-mono-num" />
+          <input id="nWhURL" placeholder="https://example.com/webhook" class="input-line w-full h-9 rounded-xl px-3 text-[13px] leading-5 font-mono-num" />
         </div>
-        <div class="pt-2 border-t border-slate-100">
-          <label class="inline-flex items-center gap-2 text-[13px] font-medium text-slate-700 cursor-pointer">
-            <input id="nWeeklyEnabled" type="checkbox" class="w-4 h-4 accent-slate-900" />
+        <div class="pt-3 border-t border-slate-200">
+          <label class="inline-flex items-start gap-2 text-[13px] leading-5 text-slate-700 cursor-pointer">
+            <input id="nWeeklyEnabled" type="checkbox" class="w-4 h-4 mt-0.5 accent-slate-900 shrink-0" />
             <span>启用 <strong>每周一 08:00 定时周报</strong>（自动汇总每台机器当月流量与费用）</span>
           </label>
         </div>
         <div class="flex flex-wrap gap-2 pt-2">
-          <button type="button" id="saveNotifyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">保存配置</button>
-          <button type="button" id="testNotifyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[13px] font-medium transition">发送测试消息</button>
-          <button type="button" id="testWeeklyBtn" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[13px] font-medium transition">立即发一次周报</button>
+          <button type="button" id="saveNotifyBtn" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">保存配置</button>
+          <button type="button" id="testNotifyBtn" class="h-9 px-3.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-[13px] leading-5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">发送测试消息</button>
+          <button type="button" id="testWeeklyBtn" class="h-9 px-3.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-[13px] leading-5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">立即发一次周报</button>
         </div>
       </div>
 
       <div class="space-y-5">
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-4">
-          <div class="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-slate-100">
+          <div class="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-slate-200">
             <div>
-              <h2 class="text-sm font-semibold text-slate-900">Passkey 通行密钥（HTTPS）</h2>
-              <p class="text-[13px] text-slate-600 mt-0.5">在 HTTPS 反代域名下绑定 Face ID / Touch ID / Windows Hello 免密登录。</p>
+              <h2 class="text-sm leading-5 font-semibold text-slate-900">Passkey 通行密钥（HTTPS）</h2>
+              <p class="text-sm leading-5 text-slate-700 mt-0.5">在 HTTPS 反代域名下绑定 Face ID / Touch ID / Windows Hello 免密登录。</p>
             </div>
-            <span id="httpsStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700">检测中...</span>
+            <span id="httpsStatusBadge" class="px-2.5 py-1 rounded-full text-xs leading-4 border border-slate-300 bg-slate-50 text-slate-700">检测中...</span>
           </div>
           <div class="flex flex-wrap gap-2">
-            <input id="pkNameInput" placeholder="密钥备注（如 MacBook / iPhone）" class="input-line flex-1 min-w-[180px] rounded-xl px-3 py-2 text-sm" />
-            <button type="button" id="registerPasskeyBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition">+ 绑定 Passkey</button>
+            <input id="pkNameInput" placeholder="密钥备注（如 MacBook / iPhone）" class="input-line flex-1 min-w-[180px] h-9 rounded-xl px-3 text-[13px] leading-5" />
+            <button type="button" id="registerPasskeyBtn" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+ 绑定 Passkey</button>
           </div>
-          <div id="passkeysList" class="divide-y divide-slate-100 text-[13px]"></div>
+          <div id="passkeysList" class="divide-y divide-slate-200 text-sm leading-5"></div>
         </div>
 
         <div class="card-surface rounded-2xl p-5 sm:p-6 space-y-3.5">
-          <h2 class="text-sm font-semibold text-slate-900">修改本地管理员密码</h2>
+          <h2 class="text-sm leading-5 font-semibold text-slate-900">修改本地管理员密码</h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input id="oldPwdInput" type="password" placeholder="输入原密码" class="input-line rounded-xl px-3 py-2 text-sm" />
-            <input id="newPwdInput" type="password" placeholder="输入新密码（至少 6 位）" class="input-line rounded-xl px-3 py-2 text-sm" />
+            <input id="oldPwdInput" type="password" autocomplete="current-password" placeholder="输入原密码" class="input-line h-9 rounded-xl px-3 text-[13px] leading-5" />
+            <input id="newPwdInput" type="password" autocomplete="new-password" placeholder="输入新密码（至少 6 位）" class="input-line h-9 rounded-xl px-3 text-[13px] leading-5" />
           </div>
-          <button type="button" id="changePwdBtn" class="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-sm font-medium transition">更新管理员密码</button>
+          <button type="button" id="changePwdBtn" class="h-9 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 text-sm leading-5 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">更新管理员密码</button>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-10 mt-6 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-10 mt-6 border-t border-slate-300 flex flex-wrap items-center justify-between gap-2 text-xs leading-4 text-slate-600">
     <div>
-      <a href="https://github.com/yellowdking/cdt-smart-monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 transition font-medium">CDT Smart Monitor</a>
+      <a href="https://github.com/yellowdking/cdt-smart-monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 transition-colors font-semibold text-slate-700">CDT Smart Monitor</a>
       <span class="mx-1.5">·</span>
       <span>MIT License</span>
     </div>
     <div>
       Inspired by
-      <a href="https://github.com/wang4386/CDT-Monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 underline underline-offset-2 transition">wang4386/CDT-Monitor</a>
+      <a href="https://github.com/wang4386/CDT-Monitor" target="_blank" rel="noopener noreferrer" class="hover:text-slate-900 underline underline-offset-2 transition-colors">wang4386/CDT-Monitor</a>
     </div>
   </footer>
 
   <script>
     let appState = null;
+    let authStatus = { initialized: false, authenticated: false, has_passkeys: false, is_https: false };
     let selectedStrategy = 'smart_hybrid';
     let formsDirty = { strategy: false, notify: false };
+    let loadStatePromise = null;
+    let loadStateForceNext = false;
+    let delayedRefreshTimer = null;
+    let manualDutyBusy = false;
+    let slotOverrideBusy = false;
 
     const DEFAULT_REGION_ID = 'cn-hongkong';
     const ALIYUN_REGIONS = [
@@ -774,46 +803,6 @@
       return name ? `${name} (${id})` : id;
     }
 
-    function fillRegionSelect(sel) {
-      if (!sel) return;
-      sel.innerHTML = '';
-      ALIYUN_REGIONS.forEach(g => {
-        const og = document.createElement('optgroup');
-        og.label = g.group;
-        g.items.forEach(item => {
-          const opt = document.createElement('option');
-          opt.value = item.id;
-          opt.textContent = `${item.name} (${item.id})`;
-          og.appendChild(opt);
-        });
-        sel.appendChild(og);
-      });
-      sel.value = DEFAULT_REGION_ID;
-    }
-
-    function setRegionSelectValue(selectEl, regionId) {
-      if (!selectEl) return;
-      selectEl.querySelectorAll('optgroup[data-custom-region], option[data-custom-region]').forEach(el => el.remove());
-      const val = String(regionId || '').trim();
-      if (!val) {
-        selectEl.value = DEFAULT_REGION_ID;
-        return;
-      }
-      const exists = Array.from(selectEl.options).some(opt => opt.value === val);
-      if (!exists) {
-        const og = document.createElement('optgroup');
-        og.label = '其他 / 历史地域';
-        og.dataset.customRegion = '1';
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = `自定义地域 (${val})`;
-        opt.dataset.customRegion = '1';
-        og.appendChild(opt);
-        selectEl.appendChild(og);
-      }
-      selectEl.value = val;
-    }
-
     function esc(v) {
       return String(v == null ? '' : v)
         .replace(/&/g, '&amp;')
@@ -823,9 +812,236 @@
         .replace(/'/g, '&#39;');
     }
 
+    // --- Custom Searchable Region Combobox (body-level fixed portal) ---
+    let activeRegionInput = null;
+    let activeRegionTrigger = null;
+    let regionFilteredOptions = [];
+    let regionHighlightIdx = -1;
+
+    function getRegionTrigger(inputEl) {
+      if (!inputEl || !inputEl.id) return null;
+      return document.getElementById(inputEl.id + 'Trigger');
+    }
+
+    function updateRegionTriggerUI(inputEl) {
+      const triggerEl = getRegionTrigger(inputEl);
+      if (!inputEl || !triggerEl) return;
+      const val = String(inputEl.value || '').trim() || DEFAULT_REGION_ID;
+      const name = ALIYUN_REGION_MAP[val] || '自定义地域';
+      const nameEl = triggerEl.querySelector('[data-region-name]');
+      const codeEl = triggerEl.querySelector('[data-region-code]');
+      if (nameEl) nameEl.textContent = name;
+      if (codeEl) codeEl.textContent = val;
+      triggerEl.title = `${name} (${val})`;
+    }
+
+    function setRegionSelectValue(inputEl, regionId) {
+      if (!inputEl) return;
+      const val = String(regionId || '').trim();
+      if (!val) {
+        inputEl.value = DEFAULT_REGION_ID;
+        delete inputEl.dataset.customRegion;
+      } else if (ALIYUN_REGION_MAP[val]) {
+        inputEl.value = val;
+        delete inputEl.dataset.customRegion;
+      } else {
+        inputEl.value = val;
+        inputEl.dataset.customRegion = val;
+      }
+      updateRegionTriggerUI(inputEl);
+    }
+
+    function positionRegionCombobox() {
+      const portal = document.getElementById('regionComboboxPortal');
+      const listEl = document.getElementById('regionComboboxList');
+      if (!portal || !listEl || !activeRegionTrigger) return;
+      const rect = activeRegionTrigger.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        closeRegionCombobox(false);
+        return;
+      }
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        closeRegionCombobox(false);
+        return;
+      }
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const width = Math.round(Math.min(vw - 16, Math.max(rect.width, 296)));
+      let left = Math.round(rect.left);
+      if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
+      if (left < 8) left = 8;
+
+      const spaceBelow = vh - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      portal.style.width = width + 'px';
+      portal.style.left = left + 'px';
+
+      if (spaceBelow < 240 && spaceAbove > spaceBelow) {
+        const maxListH = Math.max(120, Math.min(240, Math.floor(spaceAbove - 56)));
+        listEl.style.maxHeight = maxListH + 'px';
+        portal.style.top = 'auto';
+        portal.style.bottom = Math.round(vh - rect.top + 4) + 'px';
+      } else {
+        const maxListH = Math.max(120, Math.min(240, Math.floor(spaceBelow - 56)));
+        listEl.style.maxHeight = maxListH + 'px';
+        portal.style.bottom = 'auto';
+        portal.style.top = Math.round(rect.bottom + 4) + 'px';
+      }
+    }
+
+    function updateRegionHighlight(scrollIntoView) {
+      const listEl = document.getElementById('regionComboboxList');
+      if (!listEl) return;
+      const rows = listEl.querySelectorAll('button[data-region-idx]');
+      rows.forEach(row => {
+        const idx = Number(row.dataset.regionIdx);
+        const active = idx === regionHighlightIdx;
+        row.classList.toggle('bg-slate-100', active);
+        if (active && scrollIntoView) {
+          row.scrollIntoView({ block: 'nearest' });
+        }
+      });
+    }
+
+    function renderRegionComboboxList(query) {
+      const listEl = document.getElementById('regionComboboxList');
+      if (!listEl || !activeRegionInput) return;
+      const q = String(query || '').trim().toLowerCase();
+      const currentVal = String(activeRegionInput.value || '').trim() || DEFAULT_REGION_ID;
+      const customVal = String(activeRegionInput.dataset.customRegion || '').trim();
+
+      const groups = ALIYUN_REGIONS.map(g => ({ group: g.group, items: g.items }));
+      if (customVal && !ALIYUN_REGION_MAP[customVal]) {
+        groups.push({ group: '其他 / 历史地域', items: [{ id: customVal, name: '自定义地域' }] });
+      }
+
+      regionFilteredOptions = [];
+      const htmlParts = [];
+      groups.forEach(g => {
+        const matched = g.items.filter(item =>
+          !q ||
+          item.name.toLowerCase().includes(q) ||
+          item.id.toLowerCase().includes(q) ||
+          g.group.toLowerCase().includes(q)
+        );
+        if (matched.length === 0) return;
+        htmlParts.push(`<div class="px-2.5 pt-2 pb-1 first:pt-1 text-[11px] leading-4 font-semibold text-slate-600 uppercase tracking-wide select-none">${esc(g.group)}</div>`);
+        matched.forEach(item => {
+          const idx = regionFilteredOptions.length;
+          regionFilteredOptions.push(item);
+          const isSelected = item.id === currentVal;
+          htmlParts.push(`<button type="button" role="option" aria-selected="${isSelected ? 'true' : 'false'}" data-region-opt="${esc(item.id)}" data-region-idx="${idx}" class="w-full px-2.5 py-1.5 text-left flex items-center justify-between gap-2 text-[13px] leading-4 hover:bg-slate-100 transition-colors cursor-pointer">
+            <span class="truncate text-slate-900 ${isSelected ? 'font-semibold' : 'font-normal'}">${esc(item.name)}</span>
+            <span class="inline-flex items-center gap-1.5 shrink-0">
+              <span class="font-mono-num text-[11px] leading-4 text-slate-600">${esc(item.id)}</span>
+              <span class="w-3.5 h-3.5 inline-flex items-center justify-center ${isSelected ? 'text-slate-900' : 'text-transparent'}">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg>
+              </span>
+            </span>
+          </button>`);
+        });
+      });
+
+      if (regionFilteredOptions.length === 0) {
+        listEl.innerHTML = '<div class="px-3 py-4 text-center text-xs leading-4 text-slate-600">未找到匹配地域</div>';
+        regionHighlightIdx = -1;
+        return;
+      }
+
+      listEl.innerHTML = htmlParts.join('');
+      if (!q) {
+        const selIdx = regionFilteredOptions.findIndex(item => item.id === currentVal);
+        regionHighlightIdx = selIdx >= 0 ? selIdx : 0;
+      } else {
+        regionHighlightIdx = 0;
+      }
+      updateRegionHighlight(true);
+    }
+
+    function openRegionCombobox(inputEl, triggerEl) {
+      if (!inputEl || !triggerEl) return;
+      if (activeRegionInput === inputEl) {
+        closeRegionCombobox(true);
+        return;
+      }
+      if (activeRegionInput) {
+        closeRegionCombobox(false);
+      }
+      activeRegionInput = inputEl;
+      activeRegionTrigger = triggerEl;
+      triggerEl.setAttribute('aria-expanded', 'true');
+      const chev = triggerEl.querySelector('[data-region-chevron]');
+      if (chev) chev.classList.add('rotate-180');
+
+      const portal = document.getElementById('regionComboboxPortal');
+      const searchEl = document.getElementById('regionComboboxSearch');
+      searchEl.value = '';
+      portal.classList.remove('hidden');
+      positionRegionCombobox();
+      renderRegionComboboxList('');
+      searchEl.focus();
+    }
+
+    function closeRegionCombobox(returnFocus) {
+      if (!activeRegionInput) return;
+      const portal = document.getElementById('regionComboboxPortal');
+      if (portal) portal.classList.add('hidden');
+      const prevTrigger = activeRegionTrigger;
+      if (prevTrigger) {
+        prevTrigger.setAttribute('aria-expanded', 'false');
+        const chev = prevTrigger.querySelector('[data-region-chevron]');
+        if (chev) chev.classList.remove('rotate-180');
+      }
+      activeRegionInput = null;
+      activeRegionTrigger = null;
+      regionFilteredOptions = [];
+      regionHighlightIdx = -1;
+      if (returnFocus && prevTrigger) {
+        prevTrigger.focus();
+      }
+    }
+
+    function selectRegionOption(val) {
+      if (!activeRegionInput || !val) return;
+      activeRegionInput.value = val;
+      updateRegionTriggerUI(activeRegionInput);
+      closeRegionCombobox(true);
+    }
+
+    function bindRegionCombobox(inputId) {
+      const inputEl = document.getElementById(inputId);
+      const triggerEl = getRegionTrigger(inputEl);
+      if (!inputEl || !triggerEl) return;
+      updateRegionTriggerUI(inputEl);
+      triggerEl.addEventListener('click', () => openRegionCombobox(inputEl, triggerEl));
+      triggerEl.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openRegionCombobox(inputEl, triggerEl);
+        }
+      });
+    }
+
+    function syncSiteCostLabel(siteSel, labelEl) {
+      if (!siteSel || !labelEl) return;
+      labelEl.textContent = siteSel.value === 'china' ? '金额上限 (¥)' : '金额上限 ($)';
+    }
+
+    function syncRevertMinsState() {
+      const modeEl = document.getElementById('pRevertMode');
+      const minsEl = document.getElementById('pRevertMins');
+      if (!modeEl || !minsEl) return;
+      const isDuration = modeEl.value === 'duration';
+      minsEl.disabled = !isDuration;
+      minsEl.classList.toggle('bg-slate-100', !isDuration);
+      minsEl.classList.toggle('text-slate-500', !isDuration);
+      minsEl.classList.toggle('cursor-not-allowed', !isDuration);
+    }
+
     function applyBuffer(limit, buf) {
-      if (!limit || limit <= 0) return 0;
-      return limit <= buf ? limit * 0.9 : limit - buf;
+      const n = Number(limit) || 0;
+      if (n <= 0) return 0;
+      return n <= buf ? n * 0.9 : n - buf;
     }
 
     function currencySym(site) {
@@ -841,7 +1057,7 @@
     function toast(msg, isErr) {
       const el = document.getElementById('toast');
       el.textContent = msg;
-      el.className = 'fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg border ' +
+      el.className = 'fixed bottom-5 right-5 z-[60] px-4 py-2.5 rounded-xl text-sm leading-5 font-semibold shadow-lg border ' +
         (isErr ? 'bg-rose-600 text-white border-rose-700' : 'bg-slate-900 text-white border-slate-800');
       clearTimeout(window.__tt);
       window.__tt = setTimeout(() => el.classList.add('hidden'), 2800);
@@ -871,14 +1087,44 @@
         sel.appendChild(o);
       }
     }
-    function calcWindowHours(s, e) { return s === e ? 24 : (s < e ? e - s : 24 - s + e); }
     function inRange(h, s, e) { return s === e ? true : (s < e ? (h >= s && h < e) : (h >= s || h < e)); }
+
+    async function withButtonLock(btn, fn) {
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      try {
+        return await fn();
+      } finally {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+      }
+    }
+
+    function clearDelayedRefresh() {
+      if (delayedRefreshTimer) {
+        clearTimeout(delayedRefreshTimer);
+        delayedRefreshTimer = null;
+      }
+    }
+
+    function scheduleDelayedRefresh(ms = 3000) {
+      clearDelayedRefresh();
+      delayedRefreshTimer = setTimeout(() => {
+        delayedRefreshTimer = null;
+        if (authStatus && authStatus.authenticated && !document.hidden) {
+          loadState();
+        }
+      }, ms);
+    }
 
     async function api(url, opts) {
       const res = await fetch(url, opts);
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 && !url.startsWith('/api/v1/auth/')) {
         authStatus.authenticated = false;
+        clearDelayedRefresh();
+        closeRegionCombobox(false);
         const gate = document.getElementById('authGate');
         if (gate) gate.classList.remove('hidden');
       }
@@ -887,21 +1133,36 @@
     }
 
     async function loadState(forceSyncForms) {
-      try {
-        appState = await api('/api/v1/state');
-        renderAll(!!forceSyncForms);
-      } catch (e) {
-        if (authStatus && authStatus.authenticated) {
-          toast('加载状态失败: ' + e.message, true);
+      if (forceSyncForms) loadStateForceNext = true;
+      if (loadStatePromise) return loadStatePromise;
+      loadStatePromise = (async () => {
+        try {
+          const data = await api('/api/v1/state');
+          const force = loadStateForceNext;
+          loadStateForceNext = false;
+          appState = data;
+          renderAll(force);
+        } catch (e) {
+          loadStateForceNext = false;
+          if (authStatus && authStatus.authenticated) {
+            toast('加载状态失败: ' + e.message, true);
+          }
+        } finally {
+          loadStatePromise = null;
         }
-      }
+      })();
+      return loadStatePromise;
     }
 
     function serverHeadroom(s) {
-      const effT = applyBuffer(s.max_traffic_gb, 30);
-      const effC = applyBuffer(s.max_cost_usd, 0.05);
-      const tR = effT > 0 ? Math.max(0, Math.min(1, (effT - s.used_traffic_gb) / effT)) : 1;
-      const cR = effC > 0 ? Math.max(0, Math.min(1, (effC - s.billed_cost_usd) / effC)) : 1;
+      const maxT = Number(s && s.max_traffic_gb) || 0;
+      const usedT = Number(s && s.used_traffic_gb) || 0;
+      const maxC = Number(s && s.max_cost_usd) || 0;
+      const billedC = Number(s && s.billed_cost_usd) || 0;
+      const effT = applyBuffer(maxT, 30);
+      const effC = applyBuffer(maxC, 0.05);
+      const tR = effT > 0 ? Math.max(0, Math.min(1, (effT - usedT) / effT)) : 1;
+      const cR = effC > 0 ? Math.max(0, Math.min(1, (effC - billedC) / effC)) : 1;
       return Math.min(tR, cR);
     }
 
@@ -910,27 +1171,70 @@
     function parseQuickRevert(val) {
       if (!val) return { mode: 'next_slot', minutes: 120 };
       if (val.startsWith('duration:')) {
-        return { mode: 'duration', minutes: Number(val.split(':')[1]) || 120 };
+        const m = Math.round(Number(val.split(':')[1]));
+        return { mode: 'duration', minutes: (Number.isFinite(m) && m > 0) ? m : 120 };
       }
       return { mode: val, minutes: 120 };
     }
 
     function encodeQuickRevert(mode, mins) {
       if (mode === 'duration') {
-        const m = [60, 120, 240].includes(mins) ? mins : 120;
-        return 'duration:' + m;
+        const m = Math.round(Number(mins));
+        return 'duration:' + ((Number.isFinite(m) && m > 0) ? m : 120);
       }
       if (['next_slot', 'next_day', 'never'].includes(mode)) return mode;
       return 'next_slot';
     }
 
+    function syncQuickRevertSelect(quickSel, mode, mins) {
+      if (!quickSel) return;
+      quickSel.querySelectorAll('option[data-custom-duration]').forEach(o => o.remove());
+      const encoded = encodeQuickRevert(mode || 'next_slot', mins || 120);
+      if (encoded.startsWith('duration:')) {
+        const m = Number(encoded.split(':')[1]);
+        if (![60, 120, 240].includes(m)) {
+          const opt = document.createElement('option');
+          opt.value = encoded;
+          opt.dataset.customDuration = '1';
+          opt.textContent = `${m} 分钟后（自定义）`;
+          const nextDayOpt = quickSel.querySelector('option[value="next_day"]');
+          if (nextDayOpt) {
+            quickSel.insertBefore(opt, nextDayOpt);
+          } else {
+            quickSel.appendChild(opt);
+          }
+        }
+      }
+      quickSel.value = encoded;
+    }
+
+    function renderPasskeys(list) {
+      const box = document.getElementById('passkeysList');
+      const badge = document.getElementById('httpsStatusBadge');
+      if (!box || !badge) return;
+      const isSecure = window.isSecureContext || authStatus.is_https;
+      badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 启用）';
+      badge.className = isSecure
+        ? 'px-2.5 py-1 rounded-full text-xs leading-4 border border-emerald-300 bg-emerald-50 text-emerald-800'
+        : 'px-2.5 py-1 rounded-full text-xs leading-4 border border-amber-300 bg-amber-50 text-amber-900';
+      if (!list || list.length === 0) {
+        box.innerHTML = '<div class="text-slate-600 text-[13px] leading-5 py-3">尚未绑定 Passkey 通行密钥</div>';
+        return;
+      }
+      box.innerHTML = list.map(pk => `
+        <div class="flex items-center justify-between gap-2 py-2.5">
+          <div class="min-w-0 truncate"><span class="text-slate-900 font-semibold">${esc(pk.name)}</span> <span class="font-mono-num text-xs leading-4 text-slate-600 ml-2">${esc(pk.created_at)}</span></div>
+          <button type="button" data-del-pk="${esc(pk.id)}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-rose-400 text-xs leading-4 text-slate-700 hover:text-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0">删除</button>
+        </div>
+      `).join('');
+    }
+
     function renderAll(forceSyncForms) {
       if (!appState) return;
-      const p = appState.pool;
+      const p = appState.pool || {};
       const servers = appState.servers || [];
       const sched = appState.schedule || null;
       const healthy = servers.filter(s => s.in_pool && !isLockActive(s));
-      const peakHrs = calcWindowHours(p.peak_start_hour, p.peak_end_hour);
 
       const badge = document.getElementById('peakSplitBadge');
       if (sched && sched.mode === 'manual_live') {
@@ -944,12 +1248,37 @@
       }
 
       const dutySrv = servers.find(s => s.id === p.current_server_id);
-      const totalTraffic = servers.reduce((acc, s) => acc + (s.used_traffic_gb || 0), 0);
-      const totalCost = servers.reduce((acc, s) => acc + (s.billed_cost_usd || 0), 0);
+      const totalTraffic = servers.reduce((acc, s) => acc + (Number(s.used_traffic_gb) || 0), 0);
+      let usdCost = 0, cnyCost = 0, hasUSD = false, hasCNY = false;
+      servers.forEach(s => {
+        const c = Number(s.billed_cost_usd) || 0;
+        if (s.site === 'china') {
+          cnyCost += c;
+          hasCNY = true;
+        } else {
+          usdCost += c;
+          hasUSD = true;
+        }
+      });
+
       document.getElementById('kpiHealthy').textContent = `${healthy.length} / ${servers.length}`;
       document.getElementById('kpiDuty').textContent = dutySrv ? dutySrv.name : '待分配';
       document.getElementById('kpiTraffic').textContent = `${totalTraffic.toFixed(1)} GB`;
-      document.getElementById('kpiCost').textContent = `$${totalCost.toFixed(3)}`;
+
+      const kpiCostEl = document.getElementById('kpiCost');
+      if (hasUSD && hasCNY) {
+        kpiCostEl.textContent = `$${usdCost.toFixed(2)} + ¥${cnyCost.toFixed(2)}`;
+        kpiCostEl.title = `$${usdCost.toFixed(3)} + ¥${cnyCost.toFixed(3)}`;
+        kpiCostEl.className = 'font-mono-num text-base sm:text-lg leading-7 font-semibold text-slate-900 mt-1 truncate';
+      } else if (hasCNY) {
+        kpiCostEl.textContent = `¥${cnyCost.toFixed(3)}`;
+        kpiCostEl.title = '';
+        kpiCostEl.className = 'font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1';
+      } else {
+        kpiCostEl.textContent = `$${usdCost.toFixed(3)}`;
+        kpiCostEl.title = '';
+        kpiCostEl.className = 'font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1';
+      }
 
       if (forceSyncForms || !formsDirty.strategy) {
         document.getElementById('pEnabled').checked = !!p.enabled;
@@ -965,6 +1294,7 @@
         document.getElementById('pOverridesAutoReset').checked = p.manual_overrides_auto_reset_daily !== false;
         selectedStrategy = p.strategy || 'smart_hybrid';
         document.querySelectorAll('.strategy-card').forEach(c => c.classList.toggle('selected', c.dataset.strategy === selectedStrategy));
+        syncRevertMinsState();
       }
 
       if (forceSyncForms || !formsDirty.notify) {
@@ -977,6 +1307,10 @@
         document.getElementById('nWhEnabled').checked = !!n.webhook_enabled;
         document.getElementById('nWhURL').value = n.webhook_url || '';
         document.getElementById('nWeeklyEnabled').checked = !!n.weekly_report_enabled;
+      }
+
+      if (appState.auth) {
+        renderPasskeys(appState.auth.passkeys || []);
       }
 
       renderDutyControl(servers, p, sched);
@@ -996,62 +1330,60 @@
       const score = sched ? sched.balance_score : 100;
       const isManual = mode === 'manual_live' || mode === 'manual_slot';
 
-      if (quickSel) {
-        quickSel.value = encodeQuickRevert(p.manual_auto_revert_mode || 'next_slot', p.manual_auto_revert_minutes || 120);
-      }
+      syncQuickRevertSelect(quickSel, p.manual_auto_revert_mode || 'next_slot', p.manual_auto_revert_minutes || 120);
 
       if (mode === 'manual_live') {
         const rem = sched.manual_until
           ? `将于 ${sched.manual_until}（约 ${sched.manual_remain_mins}m 后）自动切回`
           : '持续保持直到一键切回';
         modeBadge.textContent = `✋ 手动指定：${sched.manual_server_name || '—'} · ${rem}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-indigo-300 bg-indigo-50 text-indigo-800';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs leading-4 border border-indigo-300 bg-indigo-50 text-indigo-900';
       } else if (mode === 'manual_slot') {
         modeBadge.textContent = `🗓 ${sched.mode_summary || '手动排班时段'}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-sky-300 bg-sky-50 text-sky-800';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs leading-4 border border-sky-300 bg-sky-50 text-sky-900';
       } else {
         modeBadge.textContent = `⚡ ${sched ? sched.mode_summary : '智能排班运行中'}`;
-        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700';
+        modeBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs leading-4 border border-emerald-300 bg-emerald-50 text-emerald-800';
       }
 
       scoreBadge.textContent = `均衡度 ${score}%`;
       scoreBadge.className = score >= 85
-        ? 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-emerald-200 bg-emerald-50 text-emerald-700'
+        ? 'inline-flex items-center px-2.5 py-1 rounded-full text-xs leading-4 font-mono-num border border-emerald-300 bg-emerald-50 text-emerald-800'
         : (score >= 65
-          ? 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-amber-200 bg-amber-50 text-amber-800'
-          : 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono-num border border-rose-200 bg-rose-50 text-rose-700');
+          ? 'inline-flex items-center px-2.5 py-1 rounded-full text-xs leading-4 font-mono-num border border-amber-300 bg-amber-50 text-amber-900'
+          : 'inline-flex items-center px-2.5 py-1 rounded-full text-xs leading-4 font-mono-num border border-rose-300 bg-rose-50 text-rose-800');
 
       if (isManual) {
-        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 transition shadow-xs';
-        returnBtn.disabled = false;
+        returnBtn.className = 'h-8 px-3 rounded-lg text-xs leading-4 font-semibold bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 whitespace-nowrap inline-flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+        returnBtn.disabled = manualDutyBusy;
       } else {
-        returnBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 cursor-default';
+        returnBtn.className = 'h-8 px-3 rounded-lg text-xs leading-4 bg-slate-100 text-slate-600 border border-slate-300 whitespace-nowrap inline-flex items-center cursor-default';
         returnBtn.disabled = true;
       }
 
       const autoCls = !isManual
-        ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-900';
+        ? 'border-slate-900 bg-slate-900 text-white font-semibold'
+        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-900';
 
       const pills = [
-        `<button type="button" data-pick-duty="0" class="px-3 py-1.5 rounded-xl border text-[13px] font-medium transition ${autoCls}">⚡ 智能自动</button>`
+        `<button type="button" data-pick-duty="0" ${manualDutyBusy ? 'disabled' : ''} class="h-8 px-3 rounded-xl border text-[13px] leading-4 inline-flex items-center transition-colors disabled:opacity-50 ${autoCls}">⚡ 智能自动</button>`
       ];
       servers.forEach(s => {
         const locked = isLockActive(s);
         const hr = Math.round(serverHeadroom(s) * 100);
         const isManualSelected = mode === 'manual_live' && sched.manual_server_id === s.id;
         const isCurrentAuto = !isManual && p.current_server_id === s.id;
-        let cls = 'border-slate-200 bg-white text-slate-700 hover:border-indigo-400 hover:text-indigo-700';
+        let cls = 'border-slate-300 bg-white text-slate-800 hover:border-indigo-500 hover:text-indigo-800';
         if (locked) {
-          cls = 'border-slate-200 bg-slate-50 text-slate-500 opacity-80 cursor-not-allowed';
+          cls = 'border-slate-300 bg-slate-100 text-slate-600 opacity-80 cursor-not-allowed';
         } else if (isManualSelected) {
-          cls = 'border-indigo-600 bg-indigo-600 text-white shadow-xs';
+          cls = 'border-indigo-600 bg-indigo-600 text-white font-semibold';
         } else if (isCurrentAuto) {
-          cls = 'border-emerald-300 bg-emerald-50/70 text-emerald-800 hover:border-indigo-400';
+          cls = 'border-emerald-400 bg-emerald-50 text-emerald-900 font-semibold hover:border-indigo-500';
         }
         const tag = locked ? '已锁' : (isManualSelected ? '手动中' : `${hr}%`);
-        const tagCls = isManualSelected ? 'text-indigo-100' : (isCurrentAuto ? 'text-emerald-700' : (locked ? 'text-slate-500' : 'text-slate-600'));
-        pills.push(`<button type="button" data-pick-duty="${s.id}" ${locked ? 'disabled' : ''} class="px-3 py-1.5 rounded-xl border text-[13px] font-medium transition inline-flex items-center gap-1.5 ${cls}"><span>${esc(s.name)}</span><span class="font-mono-num text-xs ${tagCls}">${tag}</span></button>`);
+        const tagCls = isManualSelected ? 'text-indigo-100' : (isCurrentAuto ? 'text-emerald-800' : 'text-slate-600');
+        pills.push(`<button type="button" data-pick-duty="${s.id}" ${(locked || manualDutyBusy) ? 'disabled' : ''} class="h-8 px-3 rounded-xl border text-[13px] leading-4 inline-flex items-center gap-1.5 transition-colors disabled:opacity-60 ${cls}"><span>${esc(s.name)}</span><span class="font-mono-num text-xs leading-4 font-normal ${tagCls}">${tag}</span></button>`);
       });
       pillsBox.innerHTML = pills.join('');
     }
@@ -1059,72 +1391,77 @@
     function renderServers(servers, currentID) {
       const grid = document.getElementById('serversGrid');
       if (servers.length === 0) {
-        grid.innerHTML = '<div class="col-span-full text-center py-16 bg-white border border-dashed border-slate-300 rounded-2xl text-sm text-slate-600">暂无服务器，点击右上角「+ 添加节点」加入至少 2 台实例即可开启智能轮换。</div>';
+        grid.innerHTML = '<div class="col-span-full text-center py-16 bg-white border border-dashed border-slate-400 rounded-2xl text-sm leading-5 text-slate-700">暂无服务器，点击右上角「+ 添加节点」加入至少 2 台实例即可开启智能轮换。</div>';
         return;
       }
       grid.innerHTML = servers.map(s => {
-        const effT = applyBuffer(s.max_traffic_gb, 30);
-        const effC = applyBuffer(s.max_cost_usd, 0.05);
-        const tPct = Math.min(100, (s.used_traffic_gb / Math.max(1, s.max_traffic_gb)) * 100);
-        const cPct = Math.min(100, (s.billed_cost_usd / Math.max(0.01, s.max_cost_usd)) * 100);
+        const usedT = Number(s.used_traffic_gb) || 0;
+        const maxT = Number(s.max_traffic_gb) || 0;
+        const billedC = Number(s.billed_cost_usd) || 0;
+        const maxC = Number(s.max_cost_usd) || 0;
+        const effT = applyBuffer(maxT, 30);
+        const effC = applyBuffer(maxC, 0.05);
+        const tPct = Math.max(0, Math.min(100, (usedT / Math.max(1, maxT)) * 100));
+        const cPct = Math.max(0, Math.min(100, (billedC / Math.max(0.01, maxC)) * 100));
         const headroomPct = Math.round(serverHeadroom(s) * 100);
         const isDuty = s.id === currentID;
         const isRun = s.status === 'Running';
         const locked = isLockActive(s);
+        const lockReason = String(s.lock_reason || '').trim();
         const sym = currencySym(s.site);
-        const dotCls = isRun ? 'bg-emerald-500 live-dot' : 'bg-slate-300';
-        const stText = isRun ? 'text-emerald-700' : 'text-slate-600';
+        const dotCls = isRun ? 'bg-emerald-500 live-dot' : 'bg-slate-400';
+        const stText = isRun ? 'text-emerald-800' : 'text-slate-600';
 
         const cardBody = `
-          <div class="p-5 flex flex-col justify-between gap-4 h-full cursor-pointer" data-open-detail="${s.id}">
+          <div class="p-5 flex flex-col justify-between gap-4 h-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-2xl" tabindex="0" role="button" data-open-detail="${s.id}">
             <div class="space-y-3.5">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <div class="flex items-center gap-2 min-w-0">
-                    <span class="font-semibold text-base text-slate-900 truncate">${esc(s.name)}</span>
-                    ${isDuty ? '<span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white">当班中</span>' : ''}
+                    <span class="font-semibold text-base leading-6 text-slate-900 truncate">${esc(s.name)}</span>
+                    ${isDuty ? '<span class="shrink-0 text-xs leading-4 font-semibold px-2 py-0.5 rounded-full bg-indigo-600 text-white">当班中</span>' : ''}
                   </div>
-                  ${s.region ? `<div class="text-xs text-slate-600 truncate mt-0.5" title="${esc(formatRegionLabel(s.region))}">${esc(formatRegionLabel(s.region))}</div>` : ''}
+                  ${s.region ? `<div class="text-xs leading-4 text-slate-600 truncate mt-0.5" title="${esc(formatRegionLabel(s.region))}">${esc(formatRegionLabel(s.region))}</div>` : ''}
                 </div>
-                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium mt-1 ${stText}">
+                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs leading-4 mt-1 ${stText}">
                   <span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(s.status || 'Unknown')}
                 </span>
               </div>
 
-              ${locked ? `<div class="text-xs px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-medium">本月已熔断锁定（${esc(s.lock_reason)}）</div>` : ''}
-              ${s.last_error ? `<div class="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 truncate" title="${esc(s.last_error)}">同步提示：${esc(s.last_error)}</div>` : ''}
+              ${locked ? `<div class="text-xs leading-4 px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-300 text-rose-800">${lockReason ? `本月已熔断锁定（${esc(lockReason)}）` : '本月已熔断锁定'}</div>` : ''}
+              ${s.last_error ? `<div class="text-xs leading-4 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 truncate" title="${esc(s.last_error)}">同步提示：${esc(s.last_error)}</div>` : ''}
 
               <div class="space-y-3 pt-1">
                 <div>
-                  <div class="flex justify-between text-[13px] leading-5 mb-1.5">
-                    <span class="text-slate-600 font-medium">CDT 流量</span>
-                    <span class="font-mono-num font-medium text-slate-900">${s.used_traffic_gb.toFixed(2)} <span class="text-slate-600 font-normal">/ ${s.max_traffic_gb} GB</span></span>
+                  <div class="flex justify-between text-sm leading-5 mb-1.5">
+                    <span class="text-slate-700">CDT 流量</span>
+                    <span class="font-mono-num font-semibold text-slate-900">${usedT.toFixed(2)} <span class="text-slate-600 font-normal">/ ${maxT} GB</span></span>
                   </div>
-                  <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div class="h-full rounded-full ${effT > 0 && s.used_traffic_gb >= effT ? 'bg-rose-500' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
+                  <div class="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div class="h-full rounded-full ${effT > 0 && usedT >= effT ? 'bg-rose-600' : 'bg-slate-900'}" style="width:${tPct.toFixed(1)}%"></div>
                   </div>
                 </div>
                 <div>
-                  <div class="flex justify-between text-[13px] leading-5 mb-1.5">
-                    <span class="text-slate-600 font-medium">本月费用</span>
-                    <span class="font-mono-num font-medium text-slate-900">${sym}${s.billed_cost_usd.toFixed(3)} <span class="text-slate-600 font-normal">/ ${sym}${s.max_cost_usd.toFixed(2)}</span></span>
+                  <div class="flex justify-between text-sm leading-5 mb-1.5">
+                    <span class="text-slate-700">本月费用</span>
+                    <span class="font-mono-num font-semibold text-slate-900">${sym}${billedC.toFixed(3)} <span class="text-slate-600 font-normal">/ ${sym}${maxC.toFixed(2)}</span></span>
                   </div>
-                  <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div class="h-full rounded-full ${effC > 0 && s.billed_cost_usd >= effC ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
+                  <div class="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div class="h-full rounded-full ${effC > 0 && billedC >= effC ? 'bg-rose-600' : 'bg-amber-500'}" style="width:${cPct.toFixed(1)}%"></div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 text-xs font-medium">
+            <div class="pt-3 border-t border-slate-200 flex items-center justify-between gap-1.5 text-xs leading-4">
               <div class="flex flex-wrap items-center gap-1.5">
-                <button type="button" data-act="start" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">开机</button>
-                <button type="button" data-act="stop" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">停机</button>
-                <button type="button" data-act="refresh" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 bg-white transition disabled:opacity-50">刷新</button>
-                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border transition disabled:opacity-50 ${s.keep_alive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
-                ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-50">解锁</button>` : ''}
+                <button type="button" data-act="start" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">开机</button>
+                <button type="button" data-act="stop" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">停机</button>
+                <button type="button" data-act="refresh" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">刷新</button>
+                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border transition-colors disabled:opacity-50 ${s.keep_alive ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-300 text-slate-700 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
+                ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-800 transition-colors disabled:opacity-50">解锁</button>` : ''}
               </div>
-              <span class="font-mono-num text-xs font-medium text-slate-600" title="综合健康余量">${headroomPct}%</span>
+              <span class="font-mono-num text-xs leading-4 text-slate-700 shrink-0" title="综合健康余量">${headroomPct}%</span>
             </div>
           </div>`;
 
@@ -1139,6 +1476,7 @@
       if (!appState) return;
       const s = (appState.servers || []).find(x => x.id === id);
       if (!s) return;
+      closeRegionCombobox(false);
       document.getElementById('eId').value = s.id;
       document.getElementById('modalTitle').textContent = `${s.name} · 节点详情与配置`;
       const regionInfo = s.region ? formatRegionLabel(s.region) : '';
@@ -1147,7 +1485,9 @@
       document.getElementById('ePublicIP').textContent = s.public_ip || '—';
       document.getElementById('eInstDisplay').textContent = s.instance_id || '—';
       document.getElementById('eName').value = s.name;
-      document.getElementById('eSite').value = s.site || 'intl';
+      const eSiteEl = document.getElementById('eSite');
+      eSiteEl.value = s.site || 'intl';
+      syncSiteCostLabel(eSiteEl, document.getElementById('eMaxCostLabel'));
       setRegionSelectValue(document.getElementById('eRegion'), s.region);
       document.getElementById('eInstanceID').value = s.instance_id;
       document.getElementById('eAkID').value = s.access_key_id;
@@ -1173,7 +1513,7 @@
       }
 
       if (!sched || !sched.hours) {
-        box.innerHTML = '<div class="col-span-full text-[13px] text-slate-600 py-4 text-center">排班加载中...</div>';
+        box.innerHTML = '<div class="col-span-full text-sm leading-5 text-slate-600 py-4 text-center">排班加载中...</div>';
         return;
       }
 
@@ -1193,88 +1533,89 @@
         } else {
           strip.innerHTML = plans.map(pl => {
             const cls = pl.eligible
-              ? 'border-slate-200 bg-slate-50 text-slate-700'
-              : 'border-rose-200 bg-rose-50 text-rose-700';
-            return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono-num ${cls}">
+              ? 'border-slate-300 bg-slate-50 text-slate-700'
+              : 'border-rose-300 bg-rose-50 text-rose-800';
+            return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono-num text-xs leading-4 ${cls}">
               <strong class="font-sans text-slate-900">${esc(pl.name)}</strong>
-              <span>余量 ${pl.headroom_pct}%</span>
+              <span>余量 ${Number(pl.headroom_pct) || 0}%</span>
               <span class="text-slate-400">·</span>
-              <span>权重 ${pl.weight_pct}%</span>
+              <span>权重 ${Number(pl.weight_pct) || 0}%</span>
               <span class="text-slate-400">·</span>
-              <span>今日 ${pl.scheduled_hours}h (高峰 ${pl.peak_hours}h)</span>
+              <span>今日 ${Number(pl.scheduled_hours) || 0}h (高峰 ${Number(pl.peak_hours) || 0}h)</span>
             </span>`;
           }).join('');
         }
       }
 
       const cells = sched.hours.map(slot => {
-        let cls = 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400';
-        let hrCls = 'text-slate-500';
+        const safeName = String(slot.server_name || '—');
+        let cls = 'bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-500';
+        let hrCls = 'text-slate-600';
         let lbl = '休眠';
         if (slot.phase === 'exhausted') {
-          cls = 'bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-400';
-          hrCls = 'text-rose-600';
+          cls = 'bg-rose-50 text-rose-800 border-rose-300 hover:border-rose-500';
+          hrCls = 'text-rose-700';
           lbl = '无可用';
         } else if (slot.source === 'manual_slot' || slot.source === 'manual_live') {
           cls = 'bg-indigo-50 text-indigo-900 border-indigo-400 hover:border-indigo-600';
           hrCls = 'text-indigo-700';
-          lbl = slot.server_id > 0 ? slot.server_name.slice(0, 6) : '休眠';
+          lbl = slot.server_id > 0 ? safeName.slice(0, 6) : '休眠';
         } else if (slot.phase === 'peak') {
-          cls = 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-500';
-          hrCls = 'text-amber-700';
-          lbl = (slot.server_name || '—').slice(0, 6);
+          cls = 'bg-amber-50 text-amber-900 border-amber-400 hover:border-amber-600';
+          hrCls = 'text-amber-800';
+          lbl = safeName.slice(0, 6);
         } else if (slot.phase === 'normal') {
-          cls = 'bg-blue-50 text-blue-900 border-blue-200 hover:border-blue-400';
-          hrCls = 'text-blue-700';
-          lbl = (slot.server_name || '—').slice(0, 6);
+          cls = 'bg-blue-50 text-blue-900 border-blue-300 hover:border-blue-500';
+          hrCls = 'text-blue-800';
+          lbl = safeName.slice(0, 6);
         }
         const curRing = slot.is_current_hour ? ' ring-2 ring-slate-900 ring-offset-1' : '';
         const manualDot = (slot.source === 'manual_slot' || slot.source === 'manual_live')
           ? '<span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-600" title="已手动修改"></span>'
           : '';
         const tip = `${String(slot.hour).padStart(2,'0')}:00 · ${slot.server_name || '休眠'}（${slot.source === 'auto' ? '智能排班' : '手动修改'}）— 点击修改`;
-        return `<button type="button" data-edit-hour="${slot.hour}" title="${esc(tip)}" class="relative flex flex-col items-center py-2 px-1 rounded-lg border transition cursor-pointer ${cls}${curRing}">
+        return `<button type="button" data-edit-hour="${slot.hour}" title="${esc(tip)}" class="relative flex flex-col items-center py-2 px-1 rounded-lg border transition-colors cursor-pointer ${cls}${curRing}">
           ${manualDot}
-          <span class="font-mono-num text-[11px] font-medium ${hrCls}">${String(slot.hour).padStart(2,'0')}</span>
-          <span class="text-xs font-medium mt-1 truncate max-w-full">${esc(lbl)}</span>
+          <span class="font-mono-num text-[11px] leading-4 ${hrCls}">${String(slot.hour).padStart(2,'0')}</span>
+          <span class="text-xs leading-4 mt-1 truncate max-w-full">${esc(lbl)}</span>
         </button>`;
       });
       box.innerHTML = cells.join('');
     }
 
     function openSlotModal(hour) {
-      if (!appState || !appState.schedule) return;
+      if (!appState || !appState.schedule || !appState.schedule.hours) return;
       const slot = appState.schedule.hours[hour];
       if (!slot) return;
       document.getElementById('slotModalHour').value = hour;
       document.getElementById('slotModalTitle').textContent = `修改 ${String(hour).padStart(2,'0')}:00 排班`;
-      const autoDesc = slot.auto_server_id > 0 ? slot.auto_server_name : '休眠停机';
+      const autoDesc = slot.auto_server_id > 0 ? (slot.auto_server_name || '—') : '休眠停机';
       document.getElementById('slotModalSub').textContent = `智能动态排班推荐：${autoDesc}`;
       selectedSlotScope = '1';
       document.querySelectorAll('.slot-scope-btn').forEach(b => {
         const active = b.dataset.scope === '1';
-        b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ' +
-          (active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+        b.className = 'slot-scope-btn h-8 px-2.5 rounded-lg border text-xs leading-4 transition-colors ' +
+          (active ? 'border-slate-900 bg-slate-900 text-white font-semibold' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500');
       });
 
       const list = document.getElementById('slotTargetList');
       const items = [
-        `<button type="button" data-slot-target="0" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === 0 ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-[13px] transition">
-          <span class="font-medium text-slate-900">⚡ 跟随智能排班（推荐：${esc(autoDesc)}）</span>
-          <span class="text-xs font-medium text-slate-600">自动</span>
+        `<button type="button" data-slot-target="0" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === 0 ? 'border-slate-900 bg-slate-50' : 'border-slate-300 hover:border-slate-500 bg-white'} flex items-center justify-between gap-2 text-[13px] leading-5 transition-colors">
+          <span class="font-semibold text-slate-900">⚡ 跟随智能排班（推荐：${esc(autoDesc)}）</span>
+          <span class="text-xs leading-4 text-slate-600 shrink-0">自动</span>
         </button>`,
-        `<button type="button" data-slot-target="-1" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === -1 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-400 bg-white'} flex items-center justify-between text-[13px] transition">
-          <span class="font-medium text-slate-800">🌙 强制休眠停机（StopCharging）</span>
-          <span class="text-xs font-medium text-slate-600">手动</span>
+        `<button type="button" data-slot-target="-1" class="w-full text-left px-3.5 py-2.5 rounded-xl border ${slot.manual_override === -1 ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-slate-500 bg-white'} flex items-center justify-between gap-2 text-[13px] leading-5 transition-colors">
+          <span class="font-semibold text-slate-900">🌙 强制休眠停机（StopCharging）</span>
+          <span class="text-xs leading-4 text-slate-600 shrink-0">手动</span>
         </button>`
       ];
       (appState.servers || []).forEach(s => {
         const locked = isLockActive(s);
         const hr = Math.round(serverHeadroom(s) * 100);
         const active = slot.manual_override === s.id;
-        items.push(`<button type="button" data-slot-target="${s.id}" ${locked ? 'disabled' : ''} class="w-full text-left px-3.5 py-2.5 rounded-xl border ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400 bg-white'} flex items-center justify-between text-[13px] transition ${locked ? 'opacity-50 cursor-not-allowed' : ''}">
-          <span class="font-medium text-slate-900">🖥 指定节点：${esc(s.name)}</span>
-          <span class="font-mono-num text-xs font-medium ${locked ? 'text-rose-600' : 'text-slate-600'}">${locked ? '已熔断锁定' : '余量 ' + hr + '%'}</span>
+        items.push(`<button type="button" data-slot-target="${s.id}" ${locked ? 'disabled' : ''} class="w-full text-left px-3.5 py-2.5 rounded-xl border ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-500 bg-white'} flex items-center justify-between gap-2 text-[13px] leading-5 transition-colors ${locked ? 'opacity-50 cursor-not-allowed' : ''}">
+          <span class="font-semibold text-slate-900">🖥 指定节点：${esc(s.name)}</span>
+          <span class="font-mono-num text-xs leading-4 shrink-0 ${locked ? 'text-rose-700' : 'text-slate-700'}">${locked ? '已熔断锁定' : '余量 ' + hr + '%'}</span>
         </button>`);
       });
       list.innerHTML = items.join('');
@@ -1282,8 +1623,12 @@
     }
 
     async function applyManualDuty(serverID) {
+      if (manualDutyBusy) return false;
+      manualDutyBusy = true;
       const quickSel = document.getElementById('quickRevertSelect');
       const rev = parseQuickRevert(quickSel ? quickSel.value : 'next_slot');
+      if (quickSel) quickSel.disabled = true;
+      if (appState) renderDutyControl(appState.servers || [], appState.pool || {}, appState.schedule || null);
       try {
         appState = await api('/api/v1/pool/manual', {
           method: 'POST',
@@ -1294,14 +1639,23 @@
             revert_minutes: rev.minutes
           })
         });
+        manualDutyBusy = false;
+        if (quickSel) quickSel.disabled = false;
         renderAll(false);
         toast(Number(serverID) === 0 ? '已一键切回智能动态排班' : '已手动切换当班节点');
+        return true;
       } catch (e) {
+        manualDutyBusy = false;
+        if (quickSel) quickSel.disabled = false;
+        if (appState) renderDutyControl(appState.servers || [], appState.pool || {}, appState.schedule || null);
         toast('切换失败: ' + e.message, true);
+        return false;
       }
     }
 
     async function applySlotOverride(targetID) {
+      if (slotOverrideBusy) return;
+      slotOverrideBusy = true;
       const startH = Number(document.getElementById('slotModalHour').value);
       const p = (appState && appState.pool) || {};
       let hours = [startH];
@@ -1316,6 +1670,8 @@
         }
         if (hours.length === 0) hours = [startH];
       }
+      const listBtns = document.querySelectorAll('#slotTargetList button[data-slot-target]');
+      listBtns.forEach(b => { b.dataset.wasDisabled = b.disabled ? '1' : '0'; b.disabled = true; });
       try {
         appState = await api('/api/v1/pool/schedule', {
           method: 'PUT',
@@ -1327,26 +1683,31 @@
         toast(Number(targetID) === 0 ? '已恢复该时段为智能排班' : `已手动修改 ${hours.length} 个排班时段`);
       } catch (e) {
         toast('修改排班失败: ' + e.message, true);
+      } finally {
+        slotOverrideBusy = false;
+        listBtns.forEach(b => { b.disabled = b.dataset.wasDisabled === '1'; });
       }
     }
 
     function renderEvents(events) {
       const list = document.getElementById('eventsList');
+      const prevScrollTop = list.scrollTop;
       if (events.length === 0) {
         list.innerHTML = '<div class="text-slate-600 py-6 text-center">暂无调度日志</div>';
         return;
       }
       list.innerHTML = events.map(ev => {
         const badge = ev.level === 'error'
-          ? 'text-rose-700 bg-rose-50 border-rose-200'
-          : (ev.level === 'warn' ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-slate-700 bg-slate-50 border-slate-200');
+          ? 'text-rose-800 bg-rose-50 border-rose-300'
+          : (ev.level === 'warn' ? 'text-amber-900 bg-amber-50 border-amber-300' : 'text-slate-700 bg-slate-50 border-slate-300');
         return `<div class="flex flex-wrap items-center gap-2.5 py-2.5">
-          <span class="font-mono-num text-xs text-slate-600">${esc(ev.time)}</span>
-          <span class="px-2 py-0.5 rounded-md border text-xs font-medium ${badge}">${esc(ev.action)}</span>
-          <span class="text-slate-900 font-medium">${esc(ev.server)}</span>
+          <span class="font-mono-num text-xs leading-4 text-slate-600">${esc(ev.time)}</span>
+          <span class="px-2 py-0.5 rounded-md border text-xs leading-4 ${badge}">${esc(ev.action)}</span>
+          <span class="text-slate-900 font-semibold">${esc(ev.server)}</span>
           <span class="text-slate-700">${esc(ev.message)}</span>
         </div>`;
       }).join('');
+      list.scrollTop = prevScrollTop;
     }
 
     function collectNotifyPayload() {
@@ -1362,38 +1723,40 @@
       };
     }
 
-    async function savePool(syncLimits) {
-      const prev = (appState && appState.pool) || {};
-      const body = {
-        enabled: document.getElementById('pEnabled').checked,
-        timezone: prev.timezone || 'Asia/Shanghai',
-        active_start_hour: Number(document.getElementById('pActiveStart').value),
-        active_end_hour: Number(document.getElementById('pActiveEnd').value),
-        peak_start_hour: Number(document.getElementById('pPeakStart').value),
-        peak_end_hour: Number(document.getElementById('pPeakEnd').value),
-        peak_max_slice_gb: Number(document.getElementById('pPeakBurst').value) || 0,
-        strategy: selectedStrategy,
-        default_max_traffic_gb: Number(document.getElementById('pMaxTraffic').value) || 200,
-        default_max_cost_usd: Number(document.getElementById('pMaxCost').value) || 0.50,
-        stop_mode: prev.stop_mode || 'StopCharging',
-        make_before_break: prev.make_before_break !== undefined ? prev.make_before_break : true,
-        poll_interval_minutes: prev.poll_interval_minutes || 5,
-        manual_auto_revert_mode: document.getElementById('pRevertMode').value || 'next_slot',
-        manual_auto_revert_minutes: Number(document.getElementById('pRevertMins').value) || 120,
-        manual_overrides_auto_reset_daily: document.getElementById('pOverridesAutoReset').checked
-      };
-      try {
-        appState = await api('/api/v1/pool' + (syncLimits ? '?sync_limits=1' : ''), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        formsDirty.strategy = false;
-        renderAll(true);
-        toast(syncLimits ? '策略已保存并同步到全池' : '智能轮换策略已保存');
-      } catch (e) {
-        toast('保存失败: ' + e.message, true);
-      }
+    async function savePool(syncLimits, btnEl) {
+      return withButtonLock(btnEl, async () => {
+        const prev = (appState && appState.pool) || {};
+        const body = {
+          enabled: document.getElementById('pEnabled').checked,
+          timezone: prev.timezone || 'Asia/Shanghai',
+          active_start_hour: Number(document.getElementById('pActiveStart').value),
+          active_end_hour: Number(document.getElementById('pActiveEnd').value),
+          peak_start_hour: Number(document.getElementById('pPeakStart').value),
+          peak_end_hour: Number(document.getElementById('pPeakEnd').value),
+          peak_max_slice_gb: Number(document.getElementById('pPeakBurst').value) || 0,
+          strategy: selectedStrategy,
+          default_max_traffic_gb: Number(document.getElementById('pMaxTraffic').value) || 200,
+          default_max_cost_usd: Number(document.getElementById('pMaxCost').value) || 0.50,
+          stop_mode: prev.stop_mode || 'StopCharging',
+          make_before_break: prev.make_before_break !== undefined ? prev.make_before_break : true,
+          poll_interval_minutes: prev.poll_interval_minutes || 5,
+          manual_auto_revert_mode: document.getElementById('pRevertMode').value || 'next_slot',
+          manual_auto_revert_minutes: Number(document.getElementById('pRevertMins').value) || 120,
+          manual_overrides_auto_reset_daily: document.getElementById('pOverridesAutoReset').checked
+        };
+        try {
+          appState = await api('/api/v1/pool' + (syncLimits ? '?sync_limits=1' : ''), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          formsDirty.strategy = false;
+          renderAll(false);
+          toast(syncLimits ? '策略已保存并同步到全池' : '智能轮换策略已保存');
+        } catch (e) {
+          toast('保存失败: ' + e.message, true);
+        }
+      });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1401,11 +1764,92 @@
       fillHours(document.getElementById('pActiveEnd'), true);
       fillHours(document.getElementById('pPeakStart'), false);
       fillHours(document.getElementById('pPeakEnd'), true);
-      fillRegionSelect(document.getElementById('fRegion'));
-      fillRegionSelect(document.getElementById('eRegion'));
+
+      bindRegionCombobox('fRegion');
+      bindRegionCombobox('eRegion');
+      setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
+      setRegionSelectValue(document.getElementById('eRegion'), DEFAULT_REGION_ID);
+
+      // Region combobox portal events
+      const portalEl = document.getElementById('regionComboboxPortal');
+      const searchEl = document.getElementById('regionComboboxSearch');
+      const listEl = document.getElementById('regionComboboxList');
+
+      searchEl.addEventListener('input', () => renderRegionComboboxList(searchEl.value));
+      searchEl.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (regionFilteredOptions.length > 0) {
+            regionHighlightIdx = (regionHighlightIdx + 1) % regionFilteredOptions.length;
+            updateRegionHighlight(true);
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (regionFilteredOptions.length > 0) {
+            regionHighlightIdx = (regionHighlightIdx - 1 + regionFilteredOptions.length) % regionFilteredOptions.length;
+            updateRegionHighlight(true);
+          }
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (regionHighlightIdx >= 0 && regionFilteredOptions[regionHighlightIdx]) {
+            selectRegionOption(regionFilteredOptions[regionHighlightIdx].id);
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          closeRegionCombobox(true);
+        } else if (e.key === 'Tab') {
+          closeRegionCombobox(false);
+        }
+      });
+
+      listEl.addEventListener('mousemove', e => {
+        const optBtn = e.target.closest('button[data-region-idx]');
+        if (!optBtn) return;
+        const idx = Number(optBtn.dataset.regionIdx);
+        if (idx !== regionHighlightIdx) {
+          regionHighlightIdx = idx;
+          updateRegionHighlight(false);
+        }
+      });
+
+      listEl.addEventListener('click', e => {
+        const optBtn = e.target.closest('button[data-region-opt]');
+        if (!optBtn) return;
+        selectRegionOption(optBtn.dataset.regionOpt);
+      });
+
+      document.addEventListener('mousedown', e => {
+        if (!activeRegionInput) return;
+        if (portalEl.contains(e.target)) return;
+        if (activeRegionTrigger && activeRegionTrigger.contains(e.target)) return;
+        closeRegionCombobox(false);
+      });
+
+      window.addEventListener('resize', () => {
+        if (activeRegionInput) positionRegionCombobox();
+      });
+      window.addEventListener('scroll', e => {
+        if (!activeRegionInput) return;
+        if (portalEl.contains(e.target)) return;
+        positionRegionCombobox();
+      }, true);
+
+      // Site currency label listeners
+      const fSiteEl = document.getElementById('fSite');
+      const eSiteEl = document.getElementById('eSite');
+      fSiteEl.addEventListener('change', () => syncSiteCostLabel(fSiteEl, document.getElementById('fMaxCostLabel')));
+      eSiteEl.addEventListener('change', () => syncSiteCostLabel(eSiteEl, document.getElementById('eMaxCostLabel')));
+      syncSiteCostLabel(fSiteEl, document.getElementById('fMaxCostLabel'));
+      syncSiteCostLabel(eSiteEl, document.getElementById('eMaxCostLabel'));
+
+      // Revert mode -> enable/disable minutes input
+      document.getElementById('pRevertMode').addEventListener('change', syncRevertMinsState);
+      syncRevertMinsState();
 
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          closeRegionCombobox(false);
           document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
           document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + btn.dataset.tab));
         });
@@ -1421,14 +1865,32 @@
 
       document.getElementById('tab-strategy').addEventListener('input', () => { formsDirty.strategy = true; });
       document.getElementById('tab-strategy').addEventListener('change', () => { formsDirty.strategy = true; });
-      document.getElementById('tab-notify').addEventListener('input', () => { formsDirty.notify = true; });
-      document.getElementById('tab-notify').addEventListener('change', () => { formsDirty.notify = true; });
+      // Scope Notify dirty tracking strictly to the Notify settings card (not Passkey / Password inputs)
+      const notifyCard = document.getElementById('notifySettingsCard');
+      notifyCard.addEventListener('input', () => { formsDirty.notify = true; });
+      notifyCard.addEventListener('change', () => { formsDirty.notify = true; });
+
+      function closeAddModal() {
+        closeRegionCombobox(false);
+        document.getElementById('addModal').classList.add('hidden');
+      }
+      function closeServerModal() {
+        closeRegionCombobox(false);
+        document.getElementById('serverModal').classList.add('hidden');
+      }
+      function closeSlotModal() {
+        document.getElementById('slotModal').classList.add('hidden');
+      }
 
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-          document.getElementById('addModal').classList.add('hidden');
-          document.getElementById('serverModal').classList.add('hidden');
-          document.getElementById('slotModal').classList.add('hidden');
+          if (activeRegionInput) {
+            closeRegionCombobox(true);
+            return;
+          }
+          closeAddModal();
+          closeServerModal();
+          closeSlotModal();
         }
       });
 
@@ -1441,35 +1903,46 @@
       document.getElementById('returnAutoBtn').addEventListener('click', () => applyManualDuty(0));
       document.getElementById('quickRevertSelect').addEventListener('change', async e => {
         if (!appState || !appState.pool) return;
-        const rev = parseQuickRevert(e.target.value);
-        // If already in manual_live mode, recalculate ManualUntil immediately; otherwise persist default preference
+        const sel = e.target;
+        const prevPool = appState.pool;
+        const prevVal = encodeQuickRevert(prevPool.manual_auto_revert_mode || 'next_slot', prevPool.manual_auto_revert_minutes || 120);
+        const rev = parseQuickRevert(sel.value);
         const curManualID = (appState.schedule && appState.schedule.mode === 'manual_live') ? appState.schedule.manual_server_id : 0;
         if (curManualID > 0) {
-          applyManualDuty(curManualID);
+          const ok = await applyManualDuty(curManualID);
+          if (!ok) {
+            syncQuickRevertSelect(sel, prevPool.manual_auto_revert_mode || 'next_slot', prevPool.manual_auto_revert_minutes || 120);
+          }
         } else {
-          const prev = appState.pool;
+          sel.disabled = true;
           try {
             appState = await api('/api/v1/pool', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                ...prev,
+                ...prevPool,
                 manual_auto_revert_mode: rev.mode,
                 manual_auto_revert_minutes: rev.minutes
               })
             });
-            renderAll(true);
+            renderAll(false);
             toast('已更新自动切回策略');
           } catch (err) {
+            syncQuickRevertSelect(sel, prevPool.manual_auto_revert_mode || 'next_slot', prevPool.manual_auto_revert_minutes || 120);
+            if (sel.value !== prevVal) sel.value = prevVal;
             toast('更新失败: ' + err.message, true);
+          } finally {
+            sel.disabled = false;
           }
         }
       });
 
       // Interactive 24h Gantt click-to-edit & reset controls
       const slotModal = document.getElementById('slotModal');
-      document.getElementById('closeSlotModal').addEventListener('click', () => slotModal.classList.add('hidden'));
-      slotModal.addEventListener('click', e => { if (e.target === slotModal) slotModal.classList.add('hidden'); });
+      document.getElementById('closeSlotModal').addEventListener('click', closeSlotModal);
+      slotModal.addEventListener('click', e => {
+        if (e.target === slotModal || e.target.dataset.modalBackdrop === 'slotModal') closeSlotModal();
+      });
       document.getElementById('ganttPreview').addEventListener('click', e => {
         const btn = e.target.closest('button[data-edit-hour]');
         if (!btn) return;
@@ -1481,8 +1954,8 @@
         selectedSlotScope = btn.dataset.scope;
         document.querySelectorAll('.slot-scope-btn').forEach(b => {
           const active = b.dataset.scope === selectedSlotScope;
-          b.className = 'slot-scope-btn px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ' +
-            (active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400');
+          b.className = 'slot-scope-btn h-8 px-2.5 rounded-lg border text-xs leading-4 transition-colors ' +
+            (active ? 'border-slate-900 bg-slate-900 text-white font-semibold' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500');
         });
       });
       document.getElementById('slotTargetList').addEventListener('click', e => {
@@ -1490,82 +1963,99 @@
         if (!btn || btn.disabled) return;
         applySlotOverride(Number(btn.dataset.slotTarget));
       });
-      document.getElementById('resetAllScheduleBtn').addEventListener('click', async () => {
-        try {
-          appState = await api('/api/v1/pool/schedule', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reset_all: true })
-          });
-          renderAll(false);
-          toast('已全部恢复为智能动态排班');
-        } catch (err) {
-          toast('恢复失败: ' + err.message, true);
-        }
+      document.getElementById('resetAllScheduleBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            appState = await api('/api/v1/pool/schedule', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reset_all: true })
+            });
+            renderAll(false);
+            toast('已全部恢复为智能动态排班');
+          } catch (err) {
+            toast('恢复失败: ' + err.message, true);
+          }
+        });
       });
       document.getElementById('ganttAutoResetDaily').addEventListener('change', async e => {
+        const cb = e.target;
+        const nextVal = cb.checked;
+        cb.disabled = true;
         try {
           appState = await api('/api/v1/pool/schedule', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ auto_reset_daily: e.target.checked })
+            body: JSON.stringify({ auto_reset_daily: nextVal })
           });
-          renderAll(true);
-          toast(e.target.checked ? '已开启次日 00:00 自动恢复智能排班' : '手动排班将跨日持续保留');
+          renderAll(false);
+          toast(nextVal ? '已开启次日 00:00 自动恢复智能排班' : '手动排班将跨日持续保留');
         } catch (err) {
+          cb.checked = !nextVal;
           toast('更新失败: ' + err.message, true);
+        } finally {
+          cb.disabled = false;
         }
       });
 
-      document.getElementById('savePoolBtn').addEventListener('click', () => savePool(false));
-      document.getElementById('saveAndSyncLimitsBtn').addEventListener('click', () => savePool(true));
+      document.getElementById('savePoolBtn').addEventListener('click', e => savePool(false, e.currentTarget));
+      document.getElementById('saveAndSyncLimitsBtn').addEventListener('click', e => savePool(true, e.currentTarget));
 
       // Add Modal controls
       const addModal = document.getElementById('addModal');
       document.getElementById('openAddModalBtn').addEventListener('click', () => {
+        closeRegionCombobox(false);
         if (!document.getElementById('fName').value.trim()) {
           setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
         }
+        syncSiteCostLabel(fSiteEl, document.getElementById('fMaxCostLabel'));
         addModal.classList.remove('hidden');
       });
-      document.getElementById('closeAddModal').addEventListener('click', () => addModal.classList.add('hidden'));
-      document.getElementById('cancelAddModal').addEventListener('click', () => addModal.classList.add('hidden'));
-      addModal.addEventListener('click', e => { if (e.target === addModal) addModal.classList.add('hidden'); });
+      document.getElementById('closeAddModal').addEventListener('click', closeAddModal);
+      document.getElementById('cancelAddModal').addEventListener('click', closeAddModal);
+      addModal.addEventListener('click', e => {
+        if (e.target === addModal || e.target.dataset.modalBackdrop === 'addModal') closeAddModal();
+      });
 
       // Detail/Edit Modal controls
       const serverModal = document.getElementById('serverModal');
-      document.getElementById('closeServerModal').addEventListener('click', () => serverModal.classList.add('hidden'));
-      document.getElementById('cancelServerModal').addEventListener('click', () => serverModal.classList.add('hidden'));
-      serverModal.addEventListener('click', e => { if (e.target === serverModal) serverModal.classList.add('hidden'); });
+      document.getElementById('closeServerModal').addEventListener('click', closeServerModal);
+      document.getElementById('cancelServerModal').addEventListener('click', closeServerModal);
+      serverModal.addEventListener('click', e => {
+        if (e.target === serverModal || e.target.dataset.modalBackdrop === 'serverModal') closeServerModal();
+      });
 
       document.getElementById('copyIPBtn').addEventListener('click', () => copyText(document.getElementById('ePublicIP').textContent, '公网 IP'));
       document.getElementById('copyInstBtn').addEventListener('click', () => copyText(document.getElementById('eInstDisplay').textContent, '实例 ID'));
 
       document.getElementById('editServerForm').addEventListener('submit', async e => {
         e.preventDefault();
-        const id = document.getElementById('eId').value;
-        try {
-          appState = await api(`/api/v1/servers/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: document.getElementById('eName').value.trim(),
-              site: document.getElementById('eSite').value,
-              region: document.getElementById('eRegion').value.trim(),
-              instance_id: document.getElementById('eInstanceID').value.trim(),
-              access_key_id: document.getElementById('eAkID').value.trim(),
-              access_key_secret: document.getElementById('eAkSecret').value.trim(),
-              max_traffic_gb: Number(document.getElementById('eMaxGB').value) || 200,
-              max_cost_usd: Number(document.getElementById('eMaxUSD').value) || 0.50,
-              keep_alive: document.getElementById('eKeepAlive').checked
-            })
-          });
-          serverModal.classList.add('hidden');
-          renderAll();
-          toast('节点配置已更新');
-        } catch (err) {
-          toast('保存失败: ' + err.message, true);
-        }
+        const submitBtn = document.getElementById('saveServerBtn');
+        await withButtonLock(submitBtn, async () => {
+          const id = document.getElementById('eId').value;
+          try {
+            appState = await api(`/api/v1/servers/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: document.getElementById('eName').value.trim(),
+                site: document.getElementById('eSite').value,
+                region: document.getElementById('eRegion').value.trim(),
+                instance_id: document.getElementById('eInstanceID').value.trim(),
+                access_key_id: document.getElementById('eAkID').value.trim(),
+                access_key_secret: document.getElementById('eAkSecret').value.trim(),
+                max_traffic_gb: Number(document.getElementById('eMaxGB').value) || 200,
+                max_cost_usd: Number(document.getElementById('eMaxUSD').value) || 0.50,
+                keep_alive: document.getElementById('eKeepAlive').checked
+              })
+            });
+            closeServerModal();
+            renderAll(false);
+            toast('节点配置已更新');
+          } catch (err) {
+            toast('保存失败: ' + err.message, true);
+          }
+        });
       });
 
       document.getElementById('modalDeleteBtn').addEventListener('click', async e => {
@@ -1575,63 +2065,69 @@
           btn.textContent = '再次点击确认删除';
           return;
         }
-        const id = document.getElementById('eId').value;
-        try {
-          appState = await api(`/api/v1/servers/${id}`, { method: 'DELETE' });
-          serverModal.classList.add('hidden');
-          renderAll();
-          toast('已删除该节点');
-        } catch (err) {
-          toast('删除失败: ' + err.message, true);
-        }
+        await withButtonLock(btn, async () => {
+          const id = document.getElementById('eId').value;
+          try {
+            appState = await api(`/api/v1/servers/${id}`, { method: 'DELETE' });
+            closeServerModal();
+            renderAll(false);
+            toast('已删除该节点');
+          } catch (err) {
+            toast('删除失败: ' + err.message, true);
+          }
+        });
       });
 
       document.getElementById('addServerForm').addEventListener('submit', async e => {
         e.preventDefault();
-        try {
-          appState = await api('/api/v1/servers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: document.getElementById('fName').value.trim(),
-              site: document.getElementById('fSite').value,
-              region: document.getElementById('fRegion').value.trim(),
-              instance_id: document.getElementById('fInstanceID').value.trim(),
-              access_key_id: document.getElementById('fAkID').value.trim(),
-              access_key_secret: document.getElementById('fAkSecret').value.trim(),
-              max_traffic_gb: Number(document.getElementById('fMaxGB').value) || 200,
-              max_cost_usd: Number(document.getElementById('fMaxUSD').value) || 0.50,
-              keep_alive: document.getElementById('fKeepAlive').checked
-            })
-          });
-          e.target.reset();
-          setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
-          document.getElementById('fKeepAlive').checked = true;
-          addModal.classList.add('hidden');
-          renderAll();
-          toast('服务器已加入智能轮换池，正在同步...');
-          setTimeout(loadState, 3000);
-        } catch (err) {
-          toast('添加失败: ' + err.message, true);
-        }
+        const formEl = e.target;
+        const submitBtn = document.getElementById('addServerSubmitBtn');
+        await withButtonLock(submitBtn, async () => {
+          try {
+            appState = await api('/api/v1/servers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: document.getElementById('fName').value.trim(),
+                site: document.getElementById('fSite').value,
+                region: document.getElementById('fRegion').value.trim(),
+                instance_id: document.getElementById('fInstanceID').value.trim(),
+                access_key_id: document.getElementById('fAkID').value.trim(),
+                access_key_secret: document.getElementById('fAkSecret').value.trim(),
+                max_traffic_gb: Number(document.getElementById('fMaxGB').value) || 200,
+                max_cost_usd: Number(document.getElementById('fMaxUSD').value) || 0.50,
+                keep_alive: document.getElementById('fKeepAlive').checked
+              })
+            });
+            formEl.reset();
+            setRegionSelectValue(document.getElementById('fRegion'), DEFAULT_REGION_ID);
+            syncSiteCostLabel(fSiteEl, document.getElementById('fMaxCostLabel'));
+            document.getElementById('fKeepAlive').checked = true;
+            closeAddModal();
+            renderAll(false);
+            toast('服务器已加入智能轮换池，正在同步...');
+            scheduleDelayedRefresh(3000);
+          } catch (err) {
+            toast('添加失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('serversGrid').addEventListener('click', async e => {
+      const serversGrid = document.getElementById('serversGrid');
+      serversGrid.addEventListener('click', async e => {
         const btn = e.target.closest('button[data-act]');
         if (btn) {
           e.stopPropagation();
-          if (btn.disabled) return;
-          const id = btn.dataset.id, act = btn.dataset.act;
-          btn.disabled = true;
-          try {
-            appState = await api(`/api/v1/servers/${id}/${act}`, { method: 'POST' });
-            renderAll();
-            toast('操作已执行');
-          } catch (err) {
-            toast('操作失败: ' + err.message, true);
-          } finally {
-            btn.disabled = false;
-          }
+          await withButtonLock(btn, async () => {
+            const id = btn.dataset.id, act = btn.dataset.act;
+            try {
+              appState = await api(`/api/v1/servers/${id}/${act}`, { method: 'POST' });
+              renderAll(false);
+              toast('操作已执行');
+            } catch (err) {
+              toast('操作失败: ' + err.message, true);
+            }
+          });
           return;
         }
         const card = e.target.closest('[data-open-detail]');
@@ -1640,57 +2136,75 @@
         }
       });
 
-      document.getElementById('refreshAllBtn').addEventListener('click', async () => {
-        try {
-          await api('/api/v1/refresh-all', { method: 'POST' });
-          toast('已触发全池同步，3 秒后自动刷新');
-          setTimeout(loadState, 3000);
-        } catch (err) {
-          toast('刷新失败: ' + err.message, true);
+      serversGrid.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('button')) return;
+        const card = e.target.closest('[data-open-detail]');
+        if (card) {
+          e.preventDefault();
+          openServerDetail(Number(card.dataset.openDetail));
         }
       });
 
-      document.getElementById('testNotifyBtn').addEventListener('click', async () => {
-        try {
-          const res = await api('/api/v1/notify/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(collectNotifyPayload())
-          });
-          toast(res.message || '测试消息发送成功');
-          loadState();
-        } catch (err) {
-          toast('测试发送失败: ' + err.message, true);
-        }
+      document.getElementById('refreshAllBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            await api('/api/v1/refresh-all', { method: 'POST' });
+            toast('已触发全池同步，3 秒后自动刷新');
+            scheduleDelayedRefresh(3000);
+          } catch (err) {
+            toast('刷新失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('testWeeklyBtn').addEventListener('click', async () => {
-        try {
-          const res = await api('/api/v1/notify/weekly-test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(collectNotifyPayload())
-          });
-          toast(res.message || '周报已发送');
-          loadState();
-        } catch (err) {
-          toast('发送周报失败: ' + err.message, true);
-        }
+      document.getElementById('testNotifyBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            const res = await api('/api/v1/notify/test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(collectNotifyPayload())
+            });
+            toast(res.message || '测试消息发送成功');
+            loadState();
+          } catch (err) {
+            toast('测试发送失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('saveNotifyBtn').addEventListener('click', async () => {
-        try {
-          appState = await api('/api/v1/notify', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(collectNotifyPayload())
-          });
-          formsDirty.notify = false;
-          renderAll(true);
-          toast('通知与周报配置已保存');
-        } catch (err) {
-          toast('保存失败: ' + err.message, true);
-        }
+      document.getElementById('testWeeklyBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            const res = await api('/api/v1/notify/weekly-test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(collectNotifyPayload())
+            });
+            toast(res.message || '周报已发送');
+            loadState();
+          } catch (err) {
+            toast('发送周报失败: ' + err.message, true);
+          }
+        });
+      });
+
+      document.getElementById('saveNotifyBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            appState = await api('/api/v1/notify', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(collectNotifyPayload())
+            });
+            formsDirty.notify = false;
+            renderAll(false);
+            toast('通知与周报配置已保存');
+          } catch (err) {
+            toast('保存失败: ' + err.message, true);
+          }
+        });
       });
 
       // --- WebAuthn Passkey & Local Auth ---
@@ -1708,33 +2222,13 @@
         return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       }
 
-      let authStatus = { initialized: false, authenticated: false, has_passkeys: false, is_https: false };
-
-      function renderPasskeys(list) {
-        const box = document.getElementById('passkeysList');
-        const badge = document.getElementById('httpsStatusBadge');
-        const isSecure = window.isSecureContext || authStatus.is_https;
-        badge.textContent = isSecure ? 'HTTPS 安全上下文 · 可用' : '当前为 HTTP（需 HTTPS 启用）';
-        badge.className = isSecure
-          ? 'px-2.5 py-0.5 rounded-full text-xs font-medium border border-emerald-200 bg-emerald-50 text-emerald-700'
-          : 'px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800';
-        if (!list || list.length === 0) {
-          box.innerHTML = '<div class="text-slate-600 py-3">尚未绑定 Passkey 通行密钥</div>';
-          return;
-        }
-        box.innerHTML = list.map(pk => `
-          <div class="flex items-center justify-between gap-2 py-2.5">
-            <div><span class="text-slate-900 font-medium">${esc(pk.name)}</span> <span class="font-mono-num text-xs text-slate-600 ml-2">${esc(pk.created_at)}</span></div>
-            <button type="button" data-del-pk="${esc(pk.id)}" class="px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-300 text-xs font-medium text-slate-700 hover:text-rose-600 transition">删除</button>
-          </div>
-        `).join('');
-      }
-
       async function checkAuthAndBoot() {
         try {
           authStatus = await api('/api/v1/auth/status');
           const gate = document.getElementById('authGate');
           if (!authStatus.authenticated) {
+            clearDelayedRefresh();
+            closeRegionCombobox(false);
             gate.classList.remove('hidden');
             const isInit = authStatus.initialized;
             document.getElementById('authTitle').textContent = isInit ? '管理员登录' : '首次安全初始化';
@@ -1756,140 +2250,177 @@
 
       document.getElementById('authForm').addEventListener('submit', async e => {
         e.preventDefault();
-        const pwd = document.getElementById('authPassword').value;
-        try {
-          if (!authStatus.initialized) {
-            const cfm = document.getElementById('authPasswordConfirm').value;
-            if (pwd !== cfm) { toast('两次输入的密码不一致', true); return; }
-            await api('/api/v1/auth/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
-            toast('管理员密码初始化成功');
-          } else {
-            await api('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
-            toast('登录成功');
+        const submitBtn = document.getElementById('authSubmitBtn');
+        await withButtonLock(submitBtn, async () => {
+          const pwd = document.getElementById('authPassword').value;
+          try {
+            if (!authStatus.initialized) {
+              const cfm = document.getElementById('authPasswordConfirm').value;
+              if (pwd !== cfm) { toast('两次输入的密码不一致', true); return; }
+              await api('/api/v1/auth/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
+              toast('管理员密码初始化成功');
+            } else {
+              await api('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) });
+              toast('登录成功');
+            }
+            document.getElementById('authPassword').value = '';
+            document.getElementById('authPasswordConfirm').value = '';
+            await checkAuthAndBoot();
+          } catch (err) {
+            toast(err.message, true);
           }
-          document.getElementById('authPassword').value = '';
-          document.getElementById('authPasswordConfirm').value = '';
-          await checkAuthAndBoot();
-        } catch (err) {
-          toast(err.message, true);
-        }
+        });
       });
 
-      document.getElementById('passkeyLoginBtn').addEventListener('click', async () => {
+      document.getElementById('passkeyLoginBtn').addEventListener('click', e => {
         if (!window.isSecureContext || !navigator.credentials) {
           toast('Passkey 登录需要在 HTTPS 域名下使用', true);
           return;
         }
-        try {
-          const opts = await api('/api/v1/auth/passkey/login/begin', { method: 'POST' });
-          const cred = await navigator.credentials.get({
-            publicKey: {
-              challenge: b64uToBuf(opts.challenge),
-              rpId: opts.rp_id,
-              allowCredentials: (opts.allow_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
-              userVerification: 'preferred',
-              timeout: 60000
-            }
-          });
-          await api('/api/v1/auth/passkey/login/finish', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: cred.id,
-              client_data_b64: bufToB64u(cred.response.clientDataJSON),
-              auth_data_b64: bufToB64u(cred.response.authenticatorData),
-              signature_b64: bufToB64u(cred.response.signature)
-            })
-          });
-          toast('Passkey 登录成功');
-          await checkAuthAndBoot();
-        } catch (err) {
-          toast('Passkey 登录失败: ' + err.message, true);
-        }
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            const opts = await api('/api/v1/auth/passkey/login/begin', { method: 'POST' });
+            const cred = await navigator.credentials.get({
+              publicKey: {
+                challenge: b64uToBuf(opts.challenge),
+                rpId: opts.rp_id,
+                allowCredentials: (opts.allow_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
+                userVerification: 'preferred',
+                timeout: 60000
+              }
+            });
+            await api('/api/v1/auth/passkey/login/finish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: cred.id,
+                client_data_b64: bufToB64u(cred.response.clientDataJSON),
+                auth_data_b64: bufToB64u(cred.response.authenticatorData),
+                signature_b64: bufToB64u(cred.response.signature)
+              })
+            });
+            toast('Passkey 登录成功');
+            await checkAuthAndBoot();
+          } catch (err) {
+            toast('Passkey 登录失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('registerPasskeyBtn').addEventListener('click', async () => {
+      document.getElementById('registerPasskeyBtn').addEventListener('click', e => {
         if (!window.isSecureContext || !navigator.credentials) {
           toast('绑定 Passkey 需要在 HTTPS 域名下打开面板', true);
           return;
         }
-        try {
-          const opts = await api('/api/v1/auth/passkey/register/begin', { method: 'POST' });
-          const cred = await navigator.credentials.create({
-            publicKey: {
-              challenge: b64uToBuf(opts.challenge),
-              rp: { id: opts.rp_id, name: opts.rp_name },
-              user: { id: new Uint8Array([1, 2, 3, 4]), name: 'admin', displayName: 'CDT Admin' },
-              pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-              excludeCredentials: (opts.exclude_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
-              authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
-              timeout: 60000
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            const opts = await api('/api/v1/auth/passkey/register/begin', { method: 'POST' });
+            const cred = await navigator.credentials.create({
+              publicKey: {
+                challenge: b64uToBuf(opts.challenge),
+                rp: { id: opts.rp_id, name: opts.rp_name },
+                user: { id: new Uint8Array([1, 2, 3, 4]), name: 'admin', displayName: 'CDT Admin' },
+                pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+                excludeCredentials: (opts.exclude_ids || []).map(id => ({ type: 'public-key', id: b64uToBuf(id) })),
+                authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+                timeout: 60000
+              }
+            });
+            if (!cred.response.getPublicKey || !cred.response.getAuthenticatorData) {
+              toast('当前浏览器不支持 getPublicKey，请升级浏览器', true);
+              return;
             }
-          });
-          if (!cred.response.getPublicKey || !cred.response.getAuthenticatorData) {
-            toast('当前浏览器不支持 getPublicKey，请升级浏览器', true);
-            return;
+            const res = await api('/api/v1/auth/passkey/register/finish', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: cred.id,
+                name: document.getElementById('pkNameInput').value.trim(),
+                client_data_b64: bufToB64u(cred.response.clientDataJSON),
+                auth_data_b64: bufToB64u(cred.response.getAuthenticatorData()),
+                public_key_b64: bufToB64u(cred.response.getPublicKey())
+              })
+            });
+            if (res && res.schedule) {
+              appState = res;
+              renderAll(false);
+            } else if (res && res.auth) {
+              if (!appState) appState = {};
+              appState.auth = res.auth;
+              renderPasskeys(appState.auth.passkeys || []);
+            }
+            document.getElementById('pkNameInput').value = '';
+            toast('Passkey 绑定成功');
+          } catch (err) {
+            toast('绑定 Passkey 失败: ' + err.message, true);
           }
-          appState = await api('/api/v1/auth/passkey/register/finish', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: cred.id,
-              name: document.getElementById('pkNameInput').value.trim(),
-              client_data_b64: bufToB64u(cred.response.clientDataJSON),
-              auth_data_b64: bufToB64u(cred.response.getAuthenticatorData()),
-              public_key_b64: bufToB64u(cred.response.getPublicKey())
-            })
-          });
-          document.getElementById('pkNameInput').value = '';
-          renderPasskeys((appState.auth && appState.auth.passkeys) || []);
-          toast('Passkey 绑定成功');
-        } catch (err) {
-          toast('绑定 Passkey 失败: ' + err.message, true);
-        }
+        });
       });
 
-      document.getElementById('passkeysList').addEventListener('click', async e => {
+      document.getElementById('passkeysList').addEventListener('click', e => {
         const btn = e.target.closest('button[data-del-pk]');
         if (!btn) return;
-        try {
-          appState = await api('/api/v1/auth/passkey/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: btn.dataset.delPk })
-          });
-          renderPasskeys((appState.auth && appState.auth.passkeys) || []);
-          toast('已删除该 Passkey');
-        } catch (err) {
-          toast('删除失败: ' + err.message, true);
-        }
+        withButtonLock(btn, async () => {
+          try {
+            const res = await api('/api/v1/auth/passkey/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: btn.dataset.delPk })
+            });
+            if (res && res.schedule) {
+              appState = res;
+              renderAll(false);
+            } else if (res && res.auth) {
+              if (!appState) appState = {};
+              appState.auth = res.auth;
+              renderPasskeys(appState.auth.passkeys || []);
+            }
+            toast('已删除该 Passkey');
+          } catch (err) {
+            toast('删除失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('changePwdBtn').addEventListener('click', async () => {
-        try {
-          await api('/api/v1/auth/password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              old_password: document.getElementById('oldPwdInput').value,
-              new_password: document.getElementById('newPwdInput').value
-            })
-          });
-          document.getElementById('oldPwdInput').value = '';
-          document.getElementById('newPwdInput').value = '';
-          toast('管理员密码已修改');
-        } catch (err) {
-          toast('修改密码失败: ' + err.message, true);
-        }
+      document.getElementById('changePwdBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            await api('/api/v1/auth/password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                old_password: document.getElementById('oldPwdInput').value,
+                new_password: document.getElementById('newPwdInput').value
+              })
+            });
+            document.getElementById('oldPwdInput').value = '';
+            document.getElementById('newPwdInput').value = '';
+            toast('管理员密码已修改');
+          } catch (err) {
+            toast('修改密码失败: ' + err.message, true);
+          }
+        });
       });
 
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await api('/api/v1/auth/logout', { method: 'POST' });
-        await checkAuthAndBoot();
+      document.getElementById('logoutBtn').addEventListener('click', e => {
+        withButtonLock(e.currentTarget, async () => {
+          try {
+            clearDelayedRefresh();
+            await api('/api/v1/auth/logout', { method: 'POST' });
+            await checkAuthAndBoot();
+          } catch (err) {
+            toast('退出失败: ' + err.message, true);
+          }
+        });
       });
 
       checkAuthAndBoot();
-      setInterval(() => { if (authStatus.authenticated) loadState(); }, 30000);
+      setInterval(() => {
+        if (authStatus.authenticated && !document.hidden) loadState();
+      }, 30000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && authStatus.authenticated) loadState();
+      });
     });
   </script>
 </body>

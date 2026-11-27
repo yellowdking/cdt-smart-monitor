@@ -2,7 +2,8 @@ package auth
 
 import (
 	"crypto/ecdsa"
-	"crypto/hmac"
+	"crypto/elliptic"
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -14,7 +15,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,14 +27,18 @@ import (
 )
 
 const (
-	SessionCookieName = "cdt_smart_session"
-	sessionTTL        = 7 * 24 * time.Hour
-	challengeTTL      = 5 * time.Minute
-	maxLoginFailures  = 5
-	rateLimitWindow   = 15 * time.Minute
-	pbkdf2Iterations  = 100000
-	minPBKDF2Iter     = 10000
-	maxPBKDF2Iter     = 2000000
+	SessionCookieName   = "cdt_smart_session"
+	sessionTTL          = 7 * 24 * time.Hour
+	challengeTTL        = 5 * time.Minute
+	maxLoginFailures    = 5
+	rateLimitWindow     = 15 * time.Minute
+	pbkdf2Iterations    = 100000
+	minPBKDF2Iter       = 10000
+	maxPBKDF2Iter       = 2000000
+	maxPasswordBytes    = 256
+	maxRateLimitEntries = 2048
+	maxChallengeEntries = 256
+	maxSessionEntries   = 256
 )
 
 type sessionEntry struct {
@@ -64,17 +71,23 @@ func NewManager() *Manager {
 	}
 }
 
-// --- Password Hashing (PBKDF2-HMAC-SHA256, pure stdlib) ---
+// --- Password Hashing (PBKDF2-HMAC-SHA256, Go 1.24 stdlib crypto/pbkdf2) ---
 
 func HashPassword(password string) (string, error) {
 	if len(password) < 6 {
 		return "", fmt.Errorf("密码长度至少需要 6 位")
 	}
+	if len(password) > maxPasswordBytes {
+		return "", fmt.Errorf("密码长度不能超过 %d 字节", maxPasswordBytes)
+	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	dk := pbkdf2SHA256([]byte(password), salt, pbkdf2Iterations, 32)
+	dk, err := pbkdf2.Key(sha256.New, password, salt, pbkdf2Iterations, 32)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("pbkdf2_sha256$%d$%s$%s",
 		pbkdf2Iterations,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -83,6 +96,9 @@ func HashPassword(password string) (string, error) {
 }
 
 func VerifyPassword(password, encoded string) bool {
+	if len(password) == 0 || len(password) > maxPasswordBytes {
+		return false
+	}
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 4 || parts[0] != "pbkdf2_sha256" {
 		return false
@@ -93,38 +109,14 @@ func VerifyPassword(password, encoded string) bool {
 	}
 	salt, err1 := base64.RawStdEncoding.DecodeString(parts[2])
 	expected, err2 := base64.RawStdEncoding.DecodeString(parts[3])
-	if err1 != nil || err2 != nil || len(salt) == 0 || len(expected) == 0 {
+	if err1 != nil || err2 != nil || len(salt) == 0 || len(expected) == 0 || len(expected) > 64 {
 		return false
 	}
-	dk := pbkdf2SHA256([]byte(password), salt, iter, len(expected))
+	dk, err := pbkdf2.Key(sha256.New, password, salt, iter, len(expected))
+	if err != nil {
+		return false
+	}
 	return subtle.ConstantTimeCompare(dk, expected) == 1
-}
-
-func pbkdf2SHA256(password, salt []byte, iter, keyLen int) []byte {
-	prf := func(data []byte) []byte {
-		h := hmac.New(sha256.New, password)
-		h.Write(data)
-		return h.Sum(nil)
-	}
-	hashLen := 32
-	numBlocks := (keyLen + hashLen - 1) / hashLen
-	var out []byte
-	for block := 1; block <= numBlocks; block++ {
-		buf := make([]byte, len(salt)+4)
-		copy(buf, salt)
-		binary.BigEndian.PutUint32(buf[len(salt):], uint32(block))
-		u := prf(buf)
-		t := make([]byte, len(u))
-		copy(t, u)
-		for i := 1; i < iter; i++ {
-			u = prf(u)
-			for j := range t {
-				t[j] ^= u[j]
-			}
-		}
-		out = append(out, t...)
-	}
-	return out[:keyLen]
 }
 
 // --- Sessions & Rate Limiting ---
@@ -151,20 +143,47 @@ func (m *Manager) RecordFailure(ip string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now()
-	if len(m.attempts) > 128 {
+	if ent, ok := m.attempts[ip]; ok {
+		if now.Sub(ent.FirstFail) > rateLimitWindow {
+			m.attempts[ip] = rateLimitEntry{Failures: 1, FirstFail: now}
+			return
+		}
+		ent.Failures++
+		m.attempts[ip] = ent
+		return
+	}
+
+	if len(m.attempts) >= maxRateLimitEntries || len(m.attempts) > 128 {
 		for k, v := range m.attempts {
 			if now.Sub(v.FirstFail) > rateLimitWindow {
 				delete(m.attempts, k)
 			}
 		}
 	}
-	ent, ok := m.attempts[ip]
-	if !ok || now.Sub(ent.FirstFail) > rateLimitWindow {
-		m.attempts[ip] = rateLimitEntry{Failures: 1, FirstFail: now}
-		return
+	for len(m.attempts) >= maxRateLimitEntries {
+		var evictKey string
+		var evictTime time.Time
+		// Prefer evicting the oldest non-locked entry so active lockouts remain enforced.
+		for k, v := range m.attempts {
+			if v.Failures < maxLoginFailures && (evictKey == "" || v.FirstFail.Before(evictTime)) {
+				evictKey = k
+				evictTime = v.FirstFail
+			}
+		}
+		if evictKey == "" {
+			for k, v := range m.attempts {
+				if evictKey == "" || v.FirstFail.Before(evictTime) {
+					evictKey = k
+					evictTime = v.FirstFail
+				}
+			}
+		}
+		if evictKey == "" {
+			break
+		}
+		delete(m.attempts, evictKey)
 	}
-	ent.Failures++
-	m.attempts[ip] = ent
+	m.attempts[ip] = rateLimitEntry{Failures: 1, FirstFail: now}
 }
 
 func (m *Manager) ClearFailures(ip string) {
@@ -186,6 +205,20 @@ func (m *Manager) CreateSession(w http.ResponseWriter, r *http.Request) string {
 				delete(m.sessions, k)
 			}
 		}
+	}
+	for len(m.sessions) >= maxSessionEntries {
+		var oldestKey string
+		var oldestExp time.Time
+		for k, v := range m.sessions {
+			if oldestKey == "" || v.ExpiresAt.Before(oldestExp) {
+				oldestKey = k
+				oldestExp = v.ExpiresAt
+			}
+		}
+		if oldestKey == "" {
+			break
+		}
+		delete(m.sessions, oldestKey)
 	}
 	m.sessions[token] = sessionEntry{ExpiresAt: now.Add(sessionTTL)}
 	m.mu.Unlock()
@@ -258,6 +291,20 @@ func (m *Manager) NewChallenge(rpID string) (string, error) {
 			delete(m.challenges, k)
 		}
 	}
+	for len(m.challenges) >= maxChallengeEntries {
+		var oldestKey string
+		var oldestExp time.Time
+		for k, v := range m.challenges {
+			if oldestKey == "" || v.ExpiresAt.Before(oldestExp) {
+				oldestKey = k
+				oldestExp = v.ExpiresAt
+			}
+		}
+		if oldestKey == "" {
+			break
+		}
+		delete(m.challenges, oldestKey)
+	}
 	m.challenges[ch] = challengeEntry{
 		Challenge: ch,
 		RPID:      rpID,
@@ -289,7 +336,7 @@ type clientData struct {
 
 func VerifyOrigin(origin, rpID string) error {
 	u, err := url.Parse(strings.TrimSpace(origin))
-	if err != nil || u.Hostname() == "" {
+	if err != nil || u.Hostname() == "" || u.User != nil {
 		return fmt.Errorf("无效的 WebAuthn Origin")
 	}
 	host := strings.ToLower(u.Hostname())
@@ -298,13 +345,13 @@ func VerifyOrigin(origin, rpID string) error {
 	if u.Scheme != "https" && !(u.Scheme == "http" && isLocal) {
 		return fmt.Errorf("WebAuthn Origin 必须使用 HTTPS")
 	}
-	if host != rp && !strings.HasSuffix(host, "."+rp) {
+	if host != rp {
 		return fmt.Errorf("WebAuthn Origin 域名与 RP ID 不匹配")
 	}
 	return nil
 }
 
-// VerifyPasskeyRegistration verifies clientDataJSON, origin, rpIdHash, and parses SPKI ECDSA P-256 public key.
+// VerifyPasskeyRegistration verifies clientDataJSON, origin, rpIdHash, AT flag, and parses SPKI ECDSA P-256 public key.
 func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDataB64, pubKeySPKIB64 string) (domain.PasskeyCredential, error) {
 	if strings.TrimSpace(credID) == "" {
 		return domain.PasskeyCredential{}, fmt.Errorf("缺少 Passkey 凭据 ID")
@@ -339,6 +386,21 @@ func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDat
 	if authData[32]&0x01 == 0 {
 		return domain.PasskeyCredential{}, fmt.Errorf("未检测到用户确认（UP flag）")
 	}
+	if authData[32]&0x40 == 0 {
+		return domain.PasskeyCredential{}, fmt.Errorf("注册数据缺少有效凭据标志（AT flag）")
+	}
+	if len(authData) < 55 {
+		return domain.PasskeyCredential{}, fmt.Errorf("authenticatorData 缺少 attestedCredentialData")
+	}
+	idLen := int(binary.BigEndian.Uint16(authData[53:55]))
+	if idLen == 0 || 55+idLen > len(authData) {
+		return domain.PasskeyCredential{}, fmt.Errorf("authenticatorData 凭据 ID 长度无效")
+	}
+	embeddedCredID := base64.RawURLEncoding.EncodeToString(authData[55 : 55+idLen])
+	normalizedCredID := strings.TrimRight(strings.TrimSpace(credID), "=")
+	if subtle.ConstantTimeCompare([]byte(normalizedCredID), []byte(embeddedCredID)) != 1 {
+		return domain.PasskeyCredential{}, fmt.Errorf("Passkey 凭据 ID 与 authenticatorData 不一致")
+	}
 
 	spkiBytes, err := decodeB64URL(pubKeySPKIB64)
 	if err != nil {
@@ -348,7 +410,8 @@ func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDat
 	if err != nil {
 		return domain.PasskeyCredential{}, fmt.Errorf("解析 Passkey 公钥失败: %w", err)
 	}
-	if _, ok := pub.(*ecdsa.PublicKey); !ok {
+	ecPub, ok := pub.(*ecdsa.PublicKey)
+	if !ok || ecPub.Curve != elliptic.P256() {
 		return domain.PasskeyCredential{}, fmt.Errorf("仅支持 ES256 (ECDSA P-256) Passkey 算法")
 	}
 
@@ -356,7 +419,7 @@ func (m *Manager) VerifyPasskeyRegistration(credID, name, clientDataB64, authDat
 		name = "Passkey " + time.Now().Format("01-02 15:04")
 	}
 	return domain.PasskeyCredential{
-		ID:           credID,
+		ID:           normalizedCredID,
 		Name:         strings.TrimSpace(name),
 		PublicKeyB64: base64.RawURLEncoding.EncodeToString(spkiBytes),
 		SignCount:    binary.BigEndian.Uint32(authData[33:37]),
@@ -418,8 +481,8 @@ func (m *Manager) VerifyPasskeyAssertion(creds []domain.PasskeyCredential, credI
 		return "", 0, fmt.Errorf("解析公钥失败")
 	}
 	pubKey, ok := pubAny.(*ecdsa.PublicKey)
-	if !ok {
-		return "", 0, fmt.Errorf("不支持的公钥类型")
+	if !ok || pubKey.Curve != elliptic.P256() {
+		return "", 0, fmt.Errorf("不支持的公钥类型（仅支持 ES256 / P-256）")
 	}
 
 	sigBytes, err := decodeB64URL(sigB64)
@@ -435,16 +498,61 @@ func (m *Manager) VerifyPasskeyAssertion(creds []domain.PasskeyCredential, credI
 	}
 
 	newCount := binary.BigEndian.Uint32(authData[33:37])
-	if matched.SignCount > 0 && newCount > 0 && newCount <= matched.SignCount {
+	if (matched.SignCount > 0 || newCount > 0) && newCount <= matched.SignCount {
 		return "", 0, fmt.Errorf("检测到异常签名计数（疑似克隆密钥）")
 	}
 	return matched.Name, newCount, nil
 }
 
+func remotePeerIP(remoteAddr string) string {
+	addr := strings.TrimSpace(remoteAddr)
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		return h
+	}
+	return strings.Trim(addr, "[]")
+}
+
+func isPrivateOrLoopback(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	return addr.IsLoopback() || addr.IsPrivate()
+}
+
+func trustsForwardedHeaders(r *http.Request) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CDT_TRUST_PROXY"))) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	}
+	addr, err := netip.ParseAddr(remotePeerIP(r.RemoteAddr))
+	if err != nil {
+		return false
+	}
+	return isPrivateOrLoopback(addr)
+}
+
+func parseForwardedAddr(raw string) (netip.Addr, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return netip.Addr{}, false
+	}
+	if h, _, err := net.SplitHostPort(s); err == nil {
+		s = h
+	}
+	s = strings.Trim(s, "[]")
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return addr.Unmap(), true
+}
+
 func RequestRPID(r *http.Request) string {
-	host := r.Header.Get("X-Forwarded-Host")
-	if host == "" {
-		host = r.Host
+	host := r.Host
+	if trustsForwardedHeaders(r) {
+		if xfh := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); xfh != "" {
+			host = xfh
+		}
 	}
 	if strings.Contains(host, ",") {
 		host = strings.TrimSpace(strings.Split(host, ",")[0])
@@ -459,17 +567,43 @@ func IsHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	if !trustsForwardedHeaders(r) {
+		return false
+	}
+	proto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if strings.Contains(proto, ",") {
+		proto = strings.TrimSpace(strings.Split(proto, ",")[0])
+	}
+	return strings.EqualFold(proto, "https")
 }
 
 func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
+	peer := remotePeerIP(r.RemoteAddr)
+	if !trustsForwardedHeaders(r) {
+		return peer
 	}
-	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return h
+	xffHeaders := r.Header.Values("X-Forwarded-For")
+	if len(xffHeaders) == 0 {
+		return peer
 	}
-	return r.RemoteAddr
+	parts := strings.Split(strings.Join(xffHeaders, ","), ",")
+	var rightmostValid string
+	for i := len(parts) - 1; i >= 0; i-- {
+		addr, ok := parseForwardedAddr(parts[i])
+		if !ok {
+			continue
+		}
+		if rightmostValid == "" {
+			rightmostValid = addr.String()
+		}
+		if !isPrivateOrLoopback(addr) {
+			return addr.String()
+		}
+	}
+	if rightmostValid != "" {
+		return rightmostValid
+	}
+	return peer
 }
 
 func decodeB64URL(s string) ([]byte, error) {

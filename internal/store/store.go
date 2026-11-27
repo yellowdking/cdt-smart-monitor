@@ -42,7 +42,7 @@ func Open(dataDir string) (*Store, error) {
 		state:     domain.DefaultState(),
 	}
 	if raw, err := os.ReadFile(s.statePath); err == nil {
-		var loaded domain.AppState
+		loaded := domain.DefaultState()
 		if err := json.Unmarshal(raw, &loaded); err != nil {
 			return nil, fmt.Errorf("parse state.json: %w", err)
 		}
@@ -60,12 +60,6 @@ func Open(dataDir string) (*Store, error) {
 			}
 			loaded.Notify.TelegramBotToken = dec
 		}
-		if loaded.NextServerID <= 0 {
-			loaded.NextServerID = 1
-		}
-		if loaded.NextEventID <= 0 {
-			loaded.NextEventID = 1
-		}
 		if loaded.Servers == nil {
 			loaded.Servers = []domain.Server{}
 		}
@@ -74,6 +68,24 @@ func Open(dataDir string) (*Store, error) {
 		}
 		if loaded.Auth.Passkeys == nil {
 			loaded.Auth.Passkeys = []domain.PasskeyCredential{}
+		}
+		var maxServerID int64
+		for _, srv := range loaded.Servers {
+			if srv.ID > maxServerID {
+				maxServerID = srv.ID
+			}
+		}
+		if loaded.NextServerID <= maxServerID {
+			loaded.NextServerID = maxServerID + 1
+		}
+		var maxEventID int64
+		for _, ev := range loaded.Events {
+			if ev.ID > maxEventID {
+				maxEventID = ev.ID
+			}
+		}
+		if loaded.NextEventID <= maxEventID {
+			loaded.NextEventID = maxEventID + 1
 		}
 		if loaded.Pool.ManualAutoRevertMode == "" {
 			loaded.Pool.ManualAutoRevertMode = domain.ManualRevertNextSlot
@@ -129,21 +141,35 @@ func (s *Store) Update(fn func(st *domain.AppState) error) error {
 	return nil
 }
 
+// AppendEvent appends an event log entry directly to a draft AppState (for batching inside Store.Update).
+func AppendEvent(st *domain.AppState, level, server, action, msg string) {
+	if st.NextEventID <= 0 {
+		st.NextEventID = 1
+	}
+	now := time.Now()
+	if tz := strings.TrimSpace(st.Pool.Timezone); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			now = now.In(loc)
+		}
+	}
+	ev := domain.EventLog{
+		ID:      st.NextEventID,
+		Time:    now.Format("2006-01-02 15:04:05"),
+		Level:   level,
+		Server:  server,
+		Action:  action,
+		Message: msg,
+	}
+	st.NextEventID++
+	st.Events = append([]domain.EventLog{ev}, st.Events...)
+	if len(st.Events) > 200 {
+		st.Events = st.Events[:200]
+	}
+}
+
 func (s *Store) AddEvent(level, server, action, msg string) {
 	_ = s.Update(func(st *domain.AppState) error {
-		ev := domain.EventLog{
-			ID:      st.NextEventID,
-			Time:    time.Now().Format("2006-01-02 15:04:05"),
-			Level:   level,
-			Server:  server,
-			Action:  action,
-			Message: msg,
-		}
-		st.NextEventID++
-		st.Events = append([]domain.EventLog{ev}, st.Events...)
-		if len(st.Events) > 200 {
-			st.Events = st.Events[:200]
-		}
+		AppendEvent(st, level, server, action, msg)
 		return nil
 	})
 }

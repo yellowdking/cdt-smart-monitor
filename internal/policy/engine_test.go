@@ -318,3 +318,84 @@ func TestHourlyManualScheduleOverridesAndDailyReset(t *testing.T) {
 		t.Fatalf("expected expired hourly overrides to auto-reset next day, got %+v", decNextDay)
 	}
 }
+
+func TestCheckRefreshDeltaMonthRollover(t *testing.T) {
+	// Previous month sliceStartTrafficGB was 120GB; after monthly reset UsedTrafficGB is 36GB (>= 35GB cap)
+	s := domain.Server{ID: 1, UsedTrafficGB: 36, PrevTrafficGB: 34, BilledCostUSD: 0.01, PrevCostUSD: 0.01}
+	if ok, _ := CheckRefreshDelta(s, true, 35, 120); !ok {
+		t.Fatalf("expected month-rollover sliceUsed (36GB >= 35GB) to trigger switch instead of going negative")
+	}
+	// Below cap after rollover should NOT trigger
+	s.UsedTrafficGB = 10
+	s.PrevTrafficGB = 8
+	if ok, reason := CheckRefreshDelta(s, true, 35, 120); ok {
+		t.Fatalf("expected 10GB after rollover not to trigger 35GB slice cap, got: %s", reason)
+	}
+}
+
+func TestBuildDailyScheduleManualIdleAndExpired(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Date(2026, 11, 20, 3, 15, 0, 0, loc) // Idle hour (active window is 8..24)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk1", InPool: true, Priority: 10, MaxTrafficGB: 200, MaxCostUSD: 0.50},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, MaxTrafficGB: 200, MaxCostUSD: 0.50},
+	}
+	pool := domain.PoolConfig{
+		Enabled:         true,
+		Timezone:        "Asia/Shanghai",
+		ActiveStartHour: 8,
+		ActiveEndHour:   24,
+		PeakStartHour:   18,
+		PeakEndHour:     24,
+		Strategy:        domain.StrategySmartHybrid,
+		ManualServerID:  1,
+		ManualUntil:     now.Add(1 * time.Hour),
+	}
+
+	// Active manual_live override during idle hour must mark phase="manual" and report ManualServerID=1
+	schedActive := BuildDailySchedule(pool, servers, now)
+	if schedActive.ManualServerID != 1 || schedActive.Mode != "manual_live" {
+		t.Fatalf("expected active manual_live for #1, got mode=%s manual_id=%d", schedActive.Mode, schedActive.ManualServerID)
+	}
+	if schedActive.Hours[3].Phase != "manual" || schedActive.Hours[3].Source != "manual_live" || schedActive.Hours[3].ServerID != 1 {
+		t.Fatalf("expected idle hour overridden by manual_live to have phase=manual, got %+v", schedActive.Hours[3])
+	}
+
+	// Expired ManualUntil must zero ManualServerID in schedule output and restore phase="idle"
+	pool.ManualUntil = now.Add(-1 * time.Minute)
+	schedExpired := BuildDailySchedule(pool, servers, now)
+	if schedExpired.ManualServerID != 0 || schedExpired.Mode != "auto" {
+		t.Fatalf("expected expired ManualUntil to zero ManualServerID and return auto mode, got mode=%s manual_id=%d", schedExpired.Mode, schedExpired.ManualServerID)
+	}
+	if schedExpired.Hours[3].Phase != "idle" || schedExpired.Hours[3].ServerID != 0 {
+		t.Fatalf("expected idle hour after manual expiration, got %+v", schedExpired.Hours[3])
+	}
+}
+
+func TestComputeManualUntilMidnightCrossNextDayOffset(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	// Peak wraps midnight: 22:00..02:00 (hours 22, 23, 0, 1).
+	// On day 20 (dayOffset=0): 22-23=#1, 00-01=#2.
+	// On day 21 (dayOffset=1): 22-23=#2, 00-01=#1.
+	// At 2026-11-20 23:15 (#1 peak), tomorrow's 00:00 and 01:00 are ALSO #1 peak, so next slot change is 2026-11-21 02:00.
+	now := time.Date(2026, 11, 20, 23, 15, 0, 0, loc)
+	servers := []domain.Server{
+		{ID: 1, Name: "hk1", InPool: true, Priority: 10, MaxTrafficGB: 200, MaxCostUSD: 0.50},
+		{ID: 2, Name: "hk2", InPool: true, Priority: 20, MaxTrafficGB: 200, MaxCostUSD: 0.50},
+	}
+	pool := domain.PoolConfig{
+		Enabled:         true,
+		Timezone:        "Asia/Shanghai",
+		ActiveStartHour: 0,
+		ActiveEndHour:   24,
+		PeakStartHour:   22,
+		PeakEndHour:     2,
+		Strategy:        domain.StrategySmartHybrid,
+	}
+
+	until := ComputeManualUntil(pool, servers, now, domain.ManualRevertNextSlot, 120)
+	want := time.Date(2026, 11, 21, 2, 0, 0, 0, loc)
+	if !until.Equal(want) {
+		t.Fatalf("expected next_slot across midnight to evaluate next day's dayOffset and revert at %v, got %v", want, until.In(loc))
+	}
+}
