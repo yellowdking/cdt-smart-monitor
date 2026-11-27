@@ -4,14 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CDT Smart Monitor</title>
+  <link rel="preconnect" href="https://fonts.loli.net" crossorigin />
+  <link rel="preconnect" href="https://gstatic.loli.net" crossorigin />
+  <link rel="preconnect" href="https://cdn-font.hyperos.mi.com" crossorigin />
+  <link rel="preconnect" href="https://cdn-file.hyperos.mi.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.loli.net/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" />
+  <link rel="stylesheet" href="https://cdn-font.hyperos.mi.com/font/css?family=MiSans:400,500,600,700:Chinese_Simplify&display=swap" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script id="tw-config">
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ['-apple-system', 'BlinkMacSystemFont', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei UI"', '"Microsoft YaHei"', '"Segoe UI"', 'system-ui', 'sans-serif'],
-            mono: ['ui-monospace', '"Cascadia Mono"', '"SFMono-Regular"', 'Menlo', 'Consolas', '"Liberation Mono"', 'monospace']
+            sans: ['"Inter"', '"MiSans"', '-apple-system', 'BlinkMacSystemFont', '"PingFang SC"', '"Hiragino Sans GB"', '"Segoe UI"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', '"Cascadia Mono"', '"SFMono-Regular"', 'Menlo', 'Consolas', '"MiSans"', '"PingFang SC"', '"Microsoft YaHei"', 'ui-monospace', 'monospace']
           }
         }
       }
@@ -23,8 +29,8 @@
       text-size-adjust: 100%;
     }
     :root {
-      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
-      --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+      --font-sans: "Inter", "MiSans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, "MiSans", "PingFang SC", "Microsoft YaHei", ui-monospace, monospace;
     }
     body {
       font-family: var(--font-sans);
@@ -35,6 +41,7 @@
       -moz-osx-font-smoothing: auto;
       text-rendering: auto;
       font-optical-sizing: auto;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
     body .font-sans {
       font-family: var(--font-sans);
@@ -42,10 +49,11 @@
     .font-mono-num {
       font-family: var(--font-mono);
       font-variant-numeric: tabular-nums;
+      font-feature-settings: "liga" 0, "calt" 0;
     }
     .tab-btn {
       color: #475569;
-      font-weight: 400;
+      font-weight: 500;
       border-bottom: 2px solid transparent;
       transition: color 0.15s ease, border-color 0.15s ease;
     }
@@ -115,24 +123,65 @@
       border-color: #64748B;
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     }
+    @property --glow-angle {
+      syntax: "<angle>";
+      initial-value: 135deg;
+      inherits: false;
+    }
+    @keyframes spin-glow {
+      from { --glow-angle: 0deg; }
+      to { --glow-angle: 360deg; }
+    }
+    @keyframes live-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.48); }
+      60% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    }
     .duty-glow-wrap {
-      background: #FFFFFF;
-      border: 2px solid #4F46E5;
-      border-radius: 16px;
-      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      position: relative;
+      isolation: isolate;
+      padding: 2px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: #E2E8F0;
+      box-shadow: 0 10px 28px -12px rgba(79, 70, 229, 0.28), 0 0 0 1px rgba(99, 102, 241, 0.10);
+      transition: box-shadow 0.2s ease;
+    }
+    .duty-glow-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      z-index: 0;
+      pointer-events: none;
+      background: conic-gradient(
+        from var(--glow-angle, 135deg),
+        #E2E8F0 0deg,
+        #CBD5E1 70deg,
+        #38BDF8 145deg,
+        #6366F1 205deg,
+        #10B981 265deg,
+        #38BDF8 310deg,
+        #E2E8F0 360deg
+      );
+      animation: spin-glow 4.2s linear infinite;
     }
     .duty-glow-wrap:hover {
-      border-color: #3730A3;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+      box-shadow: 0 14px 32px -12px rgba(79, 70, 229, 0.36), 0 0 0 1px rgba(99, 102, 241, 0.18);
     }
     .duty-glow-inner {
+      position: relative;
+      z-index: 1;
       background: #FFFFFF;
-      border-radius: 14px;
+      border-radius: 16px;
       height: 100%;
     }
     .live-dot {
-      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.24);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22);
+      animation: live-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .duty-glow-wrap::before { animation: none; --glow-angle: 135deg; }
+      .live-dot { animation: none; }
     }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 9999px; }
@@ -144,16 +193,16 @@
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
       <div class="h-16 flex items-center justify-between gap-2 sm:gap-3">
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div class="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-semibold">
+          <div class="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-bold">
             CDT
           </div>
           <h1 class="text-[13px] sm:text-base leading-5 sm:leading-6 font-semibold text-slate-900 truncate">CDT Smart Monitor</h1>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <span id="peakSplitBadge" class="hidden md:inline-flex items-center h-7 px-2.5 rounded-full border border-slate-300 bg-slate-50 text-xs leading-4 text-slate-700 whitespace-nowrap">加载中...</span>
-          <button type="button" id="openAddModalBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 font-semibold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+ 添加节点</button>
+          <span id="peakSplitBadge" class="hidden md:inline-flex items-center h-7 px-2.5 rounded-full border border-slate-300 bg-slate-50 text-xs leading-4 font-medium text-slate-700 whitespace-nowrap">加载中...</span>
+          <button type="button" id="openAddModalBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 font-medium whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">+ 添加节点</button>
           <button type="button" id="refreshAllBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-[13px] leading-4 sm:leading-5 font-semibold whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">全局同步</button>
-          <button type="button" id="logoutBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">退出</button>
+          <button type="button" id="logoutBtn" class="h-8 px-2.5 sm:px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 text-xs sm:text-[13px] leading-4 sm:leading-5 font-medium whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">退出</button>
         </div>
       </div>
 
@@ -173,7 +222,7 @@
     <div class="min-h-full flex items-center justify-center p-4">
       <div class="w-full max-w-sm bg-white border border-slate-300 rounded-2xl p-6 sm:p-7 space-y-5 shadow-sm">
         <div class="space-y-2">
-          <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-semibold">CDT</div>
+          <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono-num text-xs leading-4 font-bold">CDT</div>
           <h2 id="authTitle" class="text-lg leading-7 font-semibold text-slate-900">管理员登录</h2>
           <p id="authSubtitle" class="text-sm leading-5 text-slate-700">请输入本地管理员密码或使用 HTTPS Passkey 通行密钥</p>
         </div>
@@ -402,19 +451,19 @@
     <section id="tab-servers" class="tab-panel space-y-6">
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs leading-4 text-slate-700">池内健康节点</div>
+          <div class="text-xs leading-4 font-medium text-slate-700">池内健康节点</div>
           <div id="kpiHealthy" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">0 / 0</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs leading-4 text-slate-700">当前当班节点</div>
+          <div class="text-xs leading-4 font-medium text-slate-700">当前当班节点</div>
           <div id="kpiDuty" class="text-base leading-7 font-semibold text-slate-900 mt-1 truncate">—</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs leading-4 text-slate-700">累计已用流量</div>
+          <div class="text-xs leading-4 font-medium text-slate-700">累计已用流量</div>
           <div id="kpiTraffic" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">0.0 GB</div>
         </div>
         <div class="card-surface rounded-xl px-4 py-3.5">
-          <div class="text-xs leading-4 text-slate-700">累计本月费用</div>
+          <div class="text-xs leading-4 font-medium text-slate-700">累计本月费用</div>
           <div id="kpiCost" class="font-mono-num text-xl leading-7 font-semibold text-slate-900 mt-1">$0.000</div>
         </div>
       </div>
@@ -1423,7 +1472,7 @@
                   </div>
                   ${s.region ? `<div class="text-xs leading-4 text-slate-600 truncate mt-0.5" title="${esc(formatRegionLabel(s.region))}">${esc(formatRegionLabel(s.region))}</div>` : ''}
                 </div>
-                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs leading-4 mt-1 ${stText}">
+                <span class="shrink-0 inline-flex items-center gap-1.5 text-xs leading-4 font-medium mt-1 ${stText}">
                   <span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(s.status || 'Unknown')}
                 </span>
               </div>
@@ -1455,13 +1504,13 @@
 
             <div class="pt-3 border-t border-slate-200 flex items-center justify-between gap-1.5 text-xs leading-4">
               <div class="flex flex-wrap items-center gap-1.5">
-                <button type="button" data-act="start" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">开机</button>
-                <button type="button" data-act="stop" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">停机</button>
-                <button type="button" data-act="refresh" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">刷新</button>
-                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border transition-colors disabled:opacity-50 ${s.keep_alive ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-300 text-slate-700 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
-                ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-blue-300 bg-blue-50 text-blue-800 transition-colors disabled:opacity-50">解锁</button>` : ''}
+                <button type="button" data-act="start" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 font-medium text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">开机</button>
+                <button type="button" data-act="stop" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 font-medium text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">停机</button>
+                <button type="button" data-act="refresh" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-slate-300 hover:border-slate-900 font-medium text-slate-800 hover:text-slate-900 bg-white transition-colors disabled:opacity-50">刷新</button>
+                <button type="button" data-act="toggle-keepalive" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border font-medium transition-colors disabled:opacity-50 ${s.keep_alive ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-300 text-slate-700 bg-white'}">${s.keep_alive ? '保活' : '未保活'}</button>
+                ${locked ? `<button type="button" data-act="unlock" data-id="${s.id}" class="h-7 px-2.5 rounded-lg border border-blue-300 bg-blue-50 font-medium text-blue-800 transition-colors disabled:opacity-50">解锁</button>` : ''}
               </div>
-              <span class="font-mono-num text-xs leading-4 text-slate-700 shrink-0" title="综合健康余量">${headroomPct}%</span>
+              <span class="font-mono-num text-xs leading-4 font-medium text-slate-700 shrink-0" title="综合健康余量">${headroomPct}%</span>
             </div>
           </div>`;
 
